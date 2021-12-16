@@ -4,6 +4,13 @@ library(lme4); library(nlme); library(MuMIn)
 mydat <- data.table::fread("Data_inputs/gps_2013_cones_with_wind.csv")
 
 
+### Create outputs folder
+out.path <- "./Data_outputs/"
+if(dir.exists(out.path) == FALSE){
+  dir.create(out.path)
+}
+
+
 # Data processing ---------------------------------------------------------
 
 ## Encode focal cone as '1' and non-focal as '0'
