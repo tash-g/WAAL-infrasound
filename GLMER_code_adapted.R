@@ -1,8 +1,8 @@
 
-library(lme4); library(nlme); library(MuMIn)
+### Load packages
+packages <- c("lme4", "nlme", "MuMIn", "ggplot2", "tidyverse", "brms", "loo")
 
-mydat <- data.table::fread("Data_inputs/gps_2013_cones_with_wind.csv")
-
+invisible(lapply(packages, library, character.only = TRUE))
 
 ### Create outputs folder
 out.path <- "./Data_outputs/"
@@ -12,6 +12,8 @@ if(dir.exists(out.path) == FALSE){
 
 
 # Data processing ---------------------------------------------------------
+
+mydat <- data.table::fread("Data_inputs/gps_2013_cones_with_wind.csv")
 
 ## Encode focal cone as '1' and non-focal as '0'
 mydat$cone_ID <- abs(1-mydat$cone_ID)
@@ -39,8 +41,6 @@ modDat$Sex <- as.factor(modDat$Sex)
 modDat$Trip_state <- as.factor(modDat$Trip_state)
 modDat$TripID <- as.factor(modDat$TripID)
 
-
-
 # Visualizing the data -------------------------------------------------------
 
 # Cone selection
@@ -56,8 +56,6 @@ gridExtra::grid.arrange(SPL, dir, spd, ncol = 2, nrow = 2)
 
 
 # Build global model in brms --------------------------------------------------------
-
-library(brms); library(loo)
 
 ## Scale the variables
 modDat[,c(3,8,9)] <- lapply(modDat[,c(3,8,9)], function(x) c(scale(x, center = TRUE, scale = TRUE))) # abs_SPL_2000dB WindSp relDir 
@@ -93,7 +91,6 @@ plot(SPL.wind_global)
 
 SPL_brm.tranformed <- ggmcmc::ggs(SPL.wind_global)
 
-library(ggplot2); library(tidyverse)
 
 ggplot(filter(SPL_brm.tranformed, Parameter %in% c("b_Intercept", "b_abs_SPL_2000dB", "b_SexM")),
        aes(x   = Iteration,
@@ -172,19 +169,45 @@ SPL.wind_noWind <- brm(cone_ID~abs_SPL_2000dB +
 SPL.wind_noWind <- add_criterion(SPL.wind_noWind, "waic")
 save(SPL.wind_noWind, file = "Data_outputs/wind_brm-5.RData")
 
+## Model 6: quadratic SPL 
+# Notation for quadratic x2 interacting with x1: ~ x1 + x2 + I(x2^2) + x1:x2 + x1:I(x2^2)
+
+SPL.wind_quadSPL <- brm(cone_ID ~ relDir + abs_SPL_2000dB + abs_SPL_2000dB:relDir +
+                          relDir:I(abs_SPL_2000dB^2) +
+                          WindSp + 
+                          abs_SPL_2000dB:relDir:WindSp +
+                          relDir:WindSp:I(abs_SPL_2000dB^2) +
+                          relDir*WindSp +
+                          Sex + (1|counter_TripID),  
+                        data = modDat,
+                        family = bernoulli(link = "logit"), 
+                        warmup = 2000, iter = 4000, 
+                        cores = 2, chains = 2, 
+                        seed = 123) 
+
+SPL.wind_quadSPL <- add_criterion(SPL.wind_quadSPL, "waic")
+save(SPL.wind_quadSPL, file = "Data_outputs/wind_brm-6.RData")
+
+
 
 # Model comparison - compare wAIC -----------------------------------------
 
-modelFiles <- list("wind_brm-1.RData", "wind_brm-2.RData", "wind_brm-3.RData", "wind_brm-4.RData", "wind_brm-5.RData")
+modelFiles <- list("wind_brm-1.RData", "wind_brm-2.RData", "wind_brm-3.RData", "wind_brm-4.RData", "wind_brm-5.RData", "wind_brm-6.RData")
 modelFiles <- as.list(paste0("Data_outputs/", modelFiles))
 lapply(modelFiles, load, .GlobalEnv)
 
-print(loo_compare(SPL.wind_noState, SPL.wind_noDir, SPL.wind_noDirSpeed, SPL.wind_noWind, criterion = "waic"), simplify = FALSE)
+print(loo_compare(SPL.wind_noState, SPL.wind_noDir, SPL.wind_noDirSpeed, SPL.wind_noWind, SPL.wind_quadSPL,
+                  criterion = "waic"), simplify = FALSE)
 
-## Little difference between them all; choosing to retain wind variables as of biological interest but not trip state
-
+## Quadratic SPL comes out as top, but no effect of quadratic terms - suspect its
+## low AIC is due to overfitting, so sticking to original
 
 # Check selected model convergence and fit -----------------------------------
+
+load("Data_outputs/wind_brm-2.RData")
+
+## App to interrogate model
+launch_shinystan(SPL.wind_noState)
 
 ## Plot coefficient values and chains
 plot(SPL.wind_noState)
@@ -192,8 +215,6 @@ plot(SPL.wind_noState)
 ## Caterpillar plot for convergence 
 
 SPL_brm.tranformed <- ggmcmc::ggs(SPL.wind_noState)
-
-library(ggplot2); library(tidyverse)
 
 ggplot(filter(SPL_brm.tranformed, Parameter %in% c("b_Intercept", "b_abs_SPL_2000dB", "b_SexM")),
        aes(x   = Iteration,
@@ -212,6 +233,9 @@ pp_check(SPL.wind_noState, ndraws = 1000)
 
 ## Check goodness of fit
 bayes_R2(SPL.wind_noState)
+
+## Plot all coefficient values
+mcmc_plot(SPL.wind_quadSPL) 
 
 
 # Density plot to assess parameter importance -----------------------------
@@ -287,3 +311,82 @@ sjPlot::plot_model(SPL.wind_noState,
 sjPlot::plot_model(SPL.wind_noState, 
                                      type = "pred", 
                                      terms = c("WindSp", "relDir"))
+
+
+# Plot effects ------------------------------------------------------------
+
+## Significant effects = SPL and dir*speed
+
+# Get model data
+plotDat_SPL <- data.frame(p[[1]])
+
+# Set selected cones (1) to max y axis
+modDat$dummy_cone <- 0
+modDat$dummy_cone[modDat$cone_ID == 1] <- 0.12
+
+### SPL
+
+# Get scaling attributes for SPL
+att_SPL <- attributes(scale(modDat$abs_SPL_2000dB.OG, center = TRUE, scale = TRUE))
+mylabels_SPL <- seq(50,80,5)
+mybreaks_SPL <- scale(mylabels_SPL, att_SPL$`scaled:center`, att_SPL$`scaled:scale`)[,1]
+
+png(filename = "Figures/FIGX_SPL-prob.png", width = 9, height = 7, units = "in", res = 600)
+ggplot() + 
+  geom_count(data = modDat, aes(x = abs_SPL_2000dB, y = dummy_cone), alpha = 0.2) +
+  geom_ribbon(data = plotDat, aes(x = abs_SPL_2000dB, ymin = lower__, ymax = upper__),
+              alpha = 0.5, fill = "grey") +
+  geom_line(data = plotDat, aes(x = abs_SPL_2000dB, y = estimate__), size = 1) +
+  scale_x_continuous(labels = mylabels_SPL, breaks = mybreaks_SPL) +
+  scale_y_continuous(breaks = c(0, 0.04, 0.08, 0.12), limits = c(0,0.12)) +
+  labs(y = "Probability of Cone Selection", x = "Sound Pressure Level (dB)") +
+  theme_bw() +
+    theme(axis.text.x=element_text(size=16), 
+          axis.text.y=element_text(size=16), 
+          axis.title.x=element_text(size=18),
+          axis.title.y=element_text(size=18),
+          legend.position = "none")
+dev.off()
+
+
+
+### Wind direction * speed
+
+plotDat_wind <- sjPlot::plot_model(SPL.wind_noState, 
+           type = "pred", 
+           terms = c("WindSp", "relDir"))
+plotDat_wind <- data.frame(plotDat_wind$data)
+
+# Get scaling attributes for speed
+att_SPD <- attributes(scale(modDat$WindSp_OG, center = TRUE, scale = TRUE))
+mylabels_SPD <- seq(0, 25, 5)
+mybreaks_SPD <- scale(mylabels_SPD, att_SPD$`scaled:center`, att_SPD$`scaled:scale`)[,1]
+
+# Set selected cones (1) to max y axis
+modDat$dummy_cone[modDat$cone_ID == 1] <- 0.14
+
+# Specify colours
+tail_col <- "#D81B60"
+cross_col <- "#1E88E5"
+head_col <- "#FFC107"
+
+
+png(filename = "Figures/FIGX_wind-prob.png", width = 9, height = 7, units = "in", res = 600)
+ggplot() + 
+  geom_count(data = modDat, aes(x = WindSp, y = dummy_cone), alpha = 0.1) +
+  geom_ribbon(data = plotDat_wind, aes(x = x, ymin = conf.low, ymax = conf.high, group = group),
+              alpha = 0.5, fill = "grey") +
+  geom_line(data = plotDat_wind, aes(x = x, y = predicted, group = group_col,
+                                     col = group_col), size = 1) +
+  scale_x_continuous(labels = mylabels_SPD, breaks = mybreaks_SPD) +
+  scale_y_continuous(breaks = c(0, 0.04, 0.08, 0.12), limits = c(0,0.14)) +
+  scale_colour_viridis_d(labels = c("Headwind", "Crosswind", "Tailwind")) +
+  labs(y = "Probability of Cone Selection", x = "Wind Speed (m/s)", col = "Relative Wind Direction") +
+  theme_bw() +
+  theme(axis.text.x=element_text(size=16), 
+        axis.text.y=element_text(size=16), 
+        axis.title.x=element_text(size=18),
+        axis.title.y=element_text(size=18),
+        legend.position = "none")
+dev.off()
+
