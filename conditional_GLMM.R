@@ -4,7 +4,6 @@
 case subjects with a particular condition or attribute are each matched with n control subjects without the 
 condition. In general, there may be 1 to m cases matched with 1 to n controls."
 
-## Let's give it a try!
 
 library(survival); library(ggplot2); library(gridExtra)
 
