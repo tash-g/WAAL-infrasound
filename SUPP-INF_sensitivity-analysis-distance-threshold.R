@@ -508,13 +508,13 @@ for (i in 1:length(dist_data_files)){
   
   ## Get effect sizes and p values 
   covariates.F <- rownames(data.frame(summary(RSF_mod.F)$coefficients))
-  coefs.F <- data.frame(summary(RSF_mod.F)$coefficients)$coef
+  coefs.F <- data.frame(summary(RSF_mod.F)$coefficients)$exp.coef.
   pvalues.F <- data.frame(summary(RSF_mod.F)$coefficients)$Pr...z..
   
   output.F <- data.frame(cov = covariates.F, coefs = coefs.F, pvalues = pvalues.F, dist = dist, sex = "F")
   
   covariates.M <- rownames(data.frame(summary(RSF_mod.M)$coefficients))
-  coefs.M <- data.frame(summary(RSF_mod.M)$coefficients)$coef
+  coefs.M <- data.frame(summary(RSF_mod.M)$coefficients)$exp.coef.
   pvalues.M <- data.frame(summary(RSF_mod.M)$coefficients)$Pr...z..
   
   output.M <- data.frame(cov = covariates.M, coefs = coefs.M, pvalues = pvalues.M, dist = dist, sex = "M")
@@ -553,7 +553,7 @@ dev.off()
 png(filename = "Figures/FIGX_sensitivity-dist-coefs.png", width = 9, height = 7, units = "in", res = 600)
 ggplot(aes(x = dist, y = coefs, group = cov, col = cov), data = plotDat) + 
   geom_point() + geom_line() +
-  geom_hline(yintercept = 0, lty = "dashed") +
+  geom_hline(yintercept = 1, lty = "dashed") +
   facet_grid(.~sex) + 
   labs(y = "Effect size", x = "Distance threshold (km)", col = "Covariates") +
   scale_colour_viridis_d(labels = c("SPL","SPL:WindDir","WindDir")) +
