@@ -460,7 +460,8 @@ for (f in 1:length(dist_data_files)) {
 }
 
 
-# 3. Run the model for each distance threshold -----------------------------------------
+
+# 3. Fit best models for each distance threshold -----------------------------------------
 
 ## Point to distance data
 path_to_data <- "Data_inputs/"
@@ -524,7 +525,7 @@ for (i in 1:length(dist_data_files)){
   
 }
 
-sensitivity_output <- do.call("rbind", model_list)
+sensitivity_output.effects <- do.call("rbind", model_list)
 
 
 
@@ -532,7 +533,7 @@ sensitivity_output <- do.call("rbind", model_list)
 
 ### NOTE: Primarily interested in SPL, relDir, and interaction, so focus on these
 
-plotDat <- subset(sensitivity_output, cov == "abs_SPL_2000dB" | cov == "relDir" | cov == "abs_SPL_2000dB:relDir")
+plotDat <- subset(sensitivity_output.effects, cov == "abs_SPL_2000dB" | cov == "relDir" | cov == "abs_SPL_2000dB:relDir")
 
 ### P values
 png(filename = "Figures/FIGX_sensitivity-dist-p.png", width = 9, height = 7, units = "in", res = 600)

@@ -373,10 +373,9 @@ for (a in 1:length(apertures)) {
 }
 
 
+# 2. Fit best models to each aperture (15, 60, 90) ---------------------
 
-# 2. Construct models for each aperture (15, 60, 90) ---------------------
-
-## Loop through each dataset, fitting congitional logit
+## Loop through each dataset, fitting conditional logit
 apertures <- c(15, 30, 60, 90)
 model_list <- vector(mode = "list", length = length(apertures))
 
@@ -434,14 +433,12 @@ for (i in 1:length(apertures)){
   
 }
 
-sensitivity_output <- do.call("rbind", model_list)
+sensitivity_output.coefs <- do.call("rbind", model_list)
 
 
 # 4. Plot the results -----------------------------------------------------
 
-### NOTE: Primarily interested in SPL, relDir, and interaction, so focus on these
-
-plotDat <- subset(sensitivity_output, cov == "abs_SPL_2000dB" | cov == "relDir" | cov == "abs_SPL_2000dB:relDir")
+plotDat <- subset(sensitivity_output.coefs, cov == "abs_SPL_2000dB" | cov == "relDir" | cov == "abs_SPL_2000dB:relDir")
 
 ### P values
 png(filename = "Figures/FIGX_sensitivity-aperture-p.png", width = 9, height = 7, units = "in", res = 600)

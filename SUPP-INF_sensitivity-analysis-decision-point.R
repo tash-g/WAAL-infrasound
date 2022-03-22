@@ -394,8 +394,7 @@ for (f in 1:length(point_data_files)) {
 }
 
 
-
-# 2. Construct models for each fix point ---------------------
+# 3. Fit best models for each fix point ---------------------
 
 ## Loop through each dataset, fitting congitional logit
 point <- c(1,2,3)
@@ -453,14 +452,14 @@ for (i in 1:length(point)){
   
 }
 
-sensitivity_output <- do.call("rbind", model_list)
+sensitivity_output.effects <- do.call("rbind", model_list)
 
 
 # 4. Plot the results -----------------------------------------------------
 
 ### NOTE: Primarily interested in SPL, relDir, and interaction, so focus on these
 
-plotDat <- subset(sensitivity_output, cov == "abs_SPL_2000dB" | cov == "relDir" | cov == "abs_SPL_2000dB:relDir")
+plotDat <- subset(sensitivity_output.effects, cov == "abs_SPL_2000dB" | cov == "relDir" | cov == "abs_SPL_2000dB:relDir")
 
 ### P values
 png(filename = "Figures/FIGX_sensitivity-gpsfix-p.png", width = 9, height = 7, units = "in", res = 600)
