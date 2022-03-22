@@ -1,10 +1,5 @@
-#'*AIM: Adjust the duration of the travel bout denoting a decision point to see if this influences*
-#'*our results.*
+#'*AIM: Set decision point to 1st, 2nd, or 3rd fix in a bout of travel to compare results.*
 
-## Load the part-processed data set (dataset prior to calculating decision points)
-gps_2013 <- read.csv('./Data_inputs/WAAL_GPS_2013-no_SPL.csv', stringsAsFactors=F)
-
-## TO DO: Remove unnecessary columns
 
 ## Load packages
 packages <- c("dplyr", "ncdf4", "lubridate", "birk", "ggplot2", "survival")
@@ -19,96 +14,41 @@ packages <- c("dplyr", "ncdf4", "lubridate", "birk", "ggplot2", "survival")
 # Load packages
 invisible(lapply(packages, library, character.only = TRUE))
 
-
 ### Specify deg2rad function
 deg2rad <- function(deg) {(deg * pi) / (180)}
 
 
-# 1. Filter traveling bouts with varying distance thresholds ----------------------------------------------
+# 1. Loop through each aperture, match SPL map and calculate segme --------
 
-## Set bout distances to iterate through
-bout_dist <- c(20, 50, 100, 200, 400)
+## Load travel bout data
+gps_2013Trav20 <- read.csv('Data_inputs/gps_2013Trav20.csv', stringsAsFactors=F)
 
-## Extract bouts of each distance for each bird
-birds <- unique(gps_2013$BirdId)
+# Change name of TripID 201377.3 to 201377.1
+gps_2013Trav20$TripID[gps_2013Trav20$TripID=="201377.3"] <- "201377.1"
 
-for (d in 1:length(bout_dist)) {
+## Use 1st, 2nd, or 3rd point in trip to denote decision point
+
+point <- c(1,2,3)
+
+for (p in 1:length(point)) {
+
+  # Isolate first point
+  gps_2013_point <-
+    gps_2013Trav20 %>% group_by(BirdId, travbout) %>%
+    filter(row_number() == point[p]) %>% ungroup() %>% data.frame()
   
-  for (i in 1:(length(birds))) {
-    
-    GPS <- subset(gps_2013, BirdId == birds[i], )
-    GPS$idx <- seq(1:nrow(GPS))
-    
-    ## Select travelling periods only
-    gps_2013Trav <- GPS %>%
-      filter(State == "Travel")
-    
-    ## Separate each bout of travelling by looking for consecutive fixes and give them an index ID
-    idxdiff <- diff(gps_2013Trav$idx)
-    a <- c(which(diff(gps_2013Trav$idx) > 1), nrow(gps_2013Trav))
-    
-    travbout <- c()
-    for (j in 1:length(a)) {
-      if (j == 1) {
-        travbout <- c(rep(j, a[j]))
-      } else {
-        travbout <- c(travbout, rep(j, a[j] - a[j - 1]))
-      }
-    }
-    
-    ## Assign travbout ID
-    gps_2013Trav$travbout <- travbout
-    gps_2013Trav$travbout <-
-      as.factor(as.character(gps_2013Trav$travbout))
-    
-    ## Group each travel bout - calculate total distance travelled - filter bouts according
-    ## to distance threshold
-    Trav20 <- gps_2013Trav %>%
-      group_by(travbout) %>%
-      mutate(TotdisttravBout = sum(DistTrav), distThresh = bout_dist[d]) %>%
-      group_by(travbout) %>% filter(TotdisttravBout > bout_dist[d]) %>% data.frame()
-    
-    ## NOTE - NOT SURE THESE LINES DO ANYTHING
-    #Boutn <- length(unique(Trav20$travbout))
-    #Bouttot <- length(levels(Trav20$travbout))
-    
-    #c <- data.frame(BirdId = birds[i],
-                  #  Boutn = Boutn,
-                   # Bouttot = Bouttot)
-    
-    ## Create new database with all birdID which travel distance is larger than 20km
-    if (exists ("newdata")) {
-      newdata <- rbind(newdata, Trav20)
-      #fulldata <- rbind(fulldata, gps_2013Trav)
-      #Boutanal <- rbind(Boutanal, c)
-      
-    } else {  newdata <- Trav20
-      #fulldata <- gps_2013Trav
-      #Boutanal <- c
-    }
-    
-  }
-  
-  ## Output dataframe 
-  print(paste("Dist", bout_dist[d], nrow(newdata)))
-  
-  write.csv(newdata, 
-            paste0("Data_inputs/Decision_points/gps_2013_travBout", bout_dist[d], ".csv"), 
+  # Write to csv
+  write.csv(gps_2013_point, 
+            paste0("Data_inputs/Decision_points/gps_2013_travBout_point", point[p], ".csv"), 
             row.names = F)
-  
-  newdata <- NULL
-  
+
 }
 
+# 2. Match data to SPL maps -------------------------------------------------------
 
-
-# 2. Identify first point of each period and match to associated SPL map --------
-
-### Iterate through each data file, identify SPL maps, match to data
-
-## Point to distance data
+## Point to varying points data
 path_to_data <- "Data_inputs/Decision_points/"
-dist_data_files <- dir(path_to_data, pattern = ".csv")
+point_data_files <- dir(path_to_data, pattern = "point")
 
 ## Point to soundscape data
 path_to_IS_maps <- "E:/Soundscapes/"
@@ -121,20 +61,14 @@ coneno <- 360/coneaperture
 tansectlength<-2025
 tansectlength_f<-3000
 
-for (f in 1:length(dist_data_files)) {
+for (f in 1:length(point_data_files)) {
   print(f)
   
   ## Load dataset
-  gps_2013Trav20 <- read.csv(paste0(path_to_data, dist_data_files[f]), stringsAsFactors=F)
+  gps_2013Trav20 <- read.csv(paste0(path_to_data, point_data_files[f]), stringsAsFactors=F)
   
   ## Change name of TripID 201377.3 to 201377.1
   gps_2013Trav20$TripID[gps_2013Trav20$TripID=="201377.3"] <- "201377.1"
-  
-  ## Select the first point of travel for each travel bout
-  gps_2013Trav20_1stpoint <-
-    gps_2013Trav20 %>% group_by(BirdId, travbout) %>%
-    slice_head(n = 1) %>% ungroup()
-  
   
   #' * The next section of code matches GPS data to soundscape maps. It may take several hours to run.*
   
@@ -158,7 +92,7 @@ for (f in 1:length(dist_data_files)) {
     IDbirdmap <- gsub("_", ".", IDbirdmap)
     
     ## Select the bird trip for which the soundscape is being loaded
-    gps_2013_ID1 <- gps_2013Trav20_1stpoint %>% 
+    gps_2013_ID1 <- gps_2013Trav20 %>% 
       filter(TripID == IDbirdmap)
     
     # If there are no GPS data for that map, skip
@@ -260,7 +194,7 @@ for (f in 1:length(dist_data_files)) {
                                          ifelse (X2$baz>=-180 & X2$baz<=-90,(X2$baz+180),
                                                  ifelse (X2$baz>-90 & X2$baz<0,(X2$baz+180),NA))))
         
-
+        
         ### Within each soundscape map divide the area in 12 cone of 30 deg each
         
         ##Get the baz angles for the 12 cones starting from the left side of 
@@ -447,7 +381,7 @@ for (f in 1:length(dist_data_files)) {
   tik <- Sys.time()
   
   tik-tok
- 
+  
   ## Process output 
   GPS_ID_cones <- subset(GPS_ID_cones, !is.na(cone_ID))
   names(GPS_ID_cones)[32] <- "relDir"
@@ -455,37 +389,32 @@ for (f in 1:length(dist_data_files)) {
   GPS_ID_cones$cone_ID <- abs(GPS_ID_cones$cone_ID-1)
   
   ## Write to csv
-  write.csv(GPS_ID_cones, paste0("./Data_inputs/GPS_ID_cones", coneaperture, "deg_", bout_dist[f], "dist_full_database.csv"), row.names = F)
+  write.csv(GPS_ID_cones, paste0("./Data_inputs/GPS_ID_cones", coneaperture, "deg_point", point[f], "_full_database.csv"), row.names = F)
   
 }
 
 
-# 3. Run the model for each distance threshold -----------------------------------------
 
-## Point to distance data
-path_to_data <- "Data_inputs/"
-dist_data_files <- dir(path_to_data, pattern = "0dist")
-
-# Get distances to include in output
-dists <- dist_data_files %>%
-  strsplit( "_" ) %>%
-  sapply( "[", 4)
+# 2. Construct models for each fix point ---------------------
 
 ## Loop through each dataset, fitting congitional logit
-model_list <- vector(mode = "list", length = length(dist_data_files))
+point <- c(1,2,3)
+model_list <- vector(mode = "list", length = length(point))
 
-for (i in 1:length(dist_data_files)){
+for (i in 1:length(point)){
   
-  dist <- as.numeric(gsub("dist", "", dists[i]))
-  print(dist)
-  modDat <- data.table::fread(paste0(path_to_data, dist_data_files[i]), data.table = F)
-  nrow(modDat)
+  modDat <- data.table::fread(paste0("./Data_inputs/GPS_ID_cones30deg_point", point[i],"_full_database.csv"), 
+                              stringsAsFactors = F, data.table = F)
   
   modDat <- subset(modDat, !is.na(abs_SPL_2000dB))
   modDat <- subset(modDat, !is.infinite(abs_SPL_2000dB))
   
   # Rename and process variables
   names(modDat)[1] <- "case"
+  
+  modDat$birdID <- modDat$birdID %>%
+    strsplit( "_" ) %>%
+    sapply( "[", 1 )
   
   factor_vars <- c("TripID", "birdID", "Sex", "Trip_state", "pointID")
   modDat[factor_vars] <- lapply(modDat[factor_vars], factor)
@@ -511,13 +440,13 @@ for (i in 1:length(dist_data_files)){
   coefs.F <- data.frame(summary(RSF_mod.F)$coefficients)$coef
   pvalues.F <- data.frame(summary(RSF_mod.F)$coefficients)$Pr...z..
   
-  output.F <- data.frame(cov = covariates.F, coefs = coefs.F, pvalues = pvalues.F, dist = dist, sex = "F")
+  output.F <- data.frame(cov = covariates.F, coefs = coefs.F, pvalues = pvalues.F, point = point[i], sex = "F")
   
   covariates.M <- rownames(data.frame(summary(RSF_mod.M)$coefficients))
   coefs.M <- data.frame(summary(RSF_mod.M)$coefficients)$coef
   pvalues.M <- data.frame(summary(RSF_mod.M)$coefficients)$Pr...z..
   
-  output.M <- data.frame(cov = covariates.M, coefs = coefs.M, pvalues = pvalues.M, dist = dist, sex = "M")
+  output.M <- data.frame(cov = covariates.M, coefs = coefs.M, pvalues = pvalues.M, point = point[i], sex = "M")
   
   output <- rbind(output.F, output.M)
   model_list[[i]] <- output
@@ -527,7 +456,6 @@ for (i in 1:length(dist_data_files)){
 sensitivity_output <- do.call("rbind", model_list)
 
 
-
 # 4. Plot the results -----------------------------------------------------
 
 ### NOTE: Primarily interested in SPL, relDir, and interaction, so focus on these
@@ -535,12 +463,13 @@ sensitivity_output <- do.call("rbind", model_list)
 plotDat <- subset(sensitivity_output, cov == "abs_SPL_2000dB" | cov == "relDir" | cov == "abs_SPL_2000dB:relDir")
 
 ### P values
-png(filename = "Figures/FIGX_sensitivity-dist-p.png", width = 9, height = 7, units = "in", res = 600)
-ggplot(aes(x = dist, y = pvalues, group = cov, col = cov), data = plotDat) + 
+png(filename = "Figures/FIGX_sensitivity-gpsfix-p.png", width = 9, height = 7, units = "in", res = 600)
+ggplot(aes(x = point, y = pvalues, group = cov, col = cov), data = plotDat) + 
   geom_point() + geom_line() +
   geom_hline(yintercept = 0.05, lty = "dashed")+
   facet_grid(.~sex) + 
-  labs(y = "p value", x = "Distance threshold (km)", col = "Covariates") +
+  labs(y = "p value", x = "GPS fix", col = "Covariates") +
+  scale_x_continuous(breaks = c(1,2,3), labels = c("1st", "2nd", "3rd")) +
   scale_colour_viridis_d(labels = c("SPL","SPL:WindDir","WindDir")) +
   theme_bw() +
   theme(axis.text.x=element_text(size=16), 
@@ -550,12 +479,13 @@ ggplot(aes(x = dist, y = pvalues, group = cov, col = cov), data = plotDat) +
 dev.off()
 
 ## Effect sizes
-png(filename = "Figures/FIGX_sensitivity-dist-coefs.png", width = 9, height = 7, units = "in", res = 600)
-ggplot(aes(x = dist, y = coefs, group = cov, col = cov), data = plotDat) + 
+png(filename = "Figures/FIGX_sensitivity-gpsfix-coefs.png", width = 9, height = 7, units = "in", res = 600)
+ggplot(aes(x = point, y = coefs, group = cov, col = cov), data = plotDat) + 
   geom_point() + geom_line() +
   geom_hline(yintercept = 0, lty = "dashed") +
   facet_grid(.~sex) + 
-  labs(y = "Effect size", x = "Distance threshold (km)", col = "Covariates") +
+  labs(y = "Effect size", x = "GPS fix", col = "Covariates") +
+  scale_x_continuous(breaks = c(1,2,3), labels = c("1st", "2nd", "3rd")) +
   scale_colour_viridis_d(labels = c("SPL","SPL:WindDir","WindDir")) +
   theme_bw() +
   theme(axis.text.x=element_text(size=16), 
