@@ -438,7 +438,7 @@ sensitivity_output.coefs <- do.call("rbind", model_list)
 
 # 4. Plot the results -----------------------------------------------------
 
-plotDat <- subset(sensitivity_output.coefs, cov == "abs_SPL_2000dB" | cov == "relDir" | cov == "abs_SPL_2000dB:relDir")
+plotDat <- sensitivity_output.coefs
 
 ### P values
 png(filename = "Figures/FIGX_sensitivity-aperture-p.png", width = 9, height = 7, units = "in", res = 600)
@@ -447,7 +447,7 @@ ggplot(aes(x = aperture, y = pvalues, group = cov, col = cov), data = plotDat) +
   geom_hline(yintercept = 0.05, lty = "dashed")+
   facet_grid(.~sex) + 
   labs(y = "p value", x = "Aperture size (degrees)", col = "Covariates") +
-  scale_colour_viridis_d(labels = c("SPL","SPL:WindDir","WindDir")) +
+  scale_colour_viridis_d(labels = c("SPL","SPL:windDir","SPL:windSp", "windDir", "windDir:windSp")) +
   theme_bw() +
   theme(axis.text.x=element_text(size=16), 
         axis.text.y=element_text(size=16), 
@@ -462,7 +462,7 @@ ggplot(aes(x = aperture, y = coefs, group = cov, col = cov), data = plotDat) +
   geom_hline(yintercept = 1, lty = "dashed") +
   facet_grid(.~sex) + 
   labs(y = "Effect size", x = "Aperture size (degrees)", col = "Covariates") +
-  scale_colour_viridis_d(labels = c("SPL","SPL:WindDir","WindDir")) +
+  scale_colour_viridis_d(labels = c("SPL","SPL:windDir","SPL:windSp", "windDir", "windDir:windSp")) +
   theme_bw() +
   theme(axis.text.x=element_text(size=16), 
         axis.text.y=element_text(size=16), 
