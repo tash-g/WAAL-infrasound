@@ -1,5 +1,20 @@
-##'**AIM: Fit a conditional logistic regression model to compare conditions of**
-##'**focal to non-focal sectors within decision points**
+## ---------------------------
+##
+## Script name: ANALYSE_conditional_logit
+##
+## Purpose of script: This script is used to fit conditional logistic regression
+## models to the data to compare conditions between non-focal and focal segments
+## within decision points. 
+##
+## Author: Dr. Natasha Gillies
+##
+## Date Created: 2022-01-19
+##
+## R version: 4.1.1 (2021-08-10)
+##
+## Email: gilliesne@gmail.com
+##
+## ---------------------------
 
 
 # 1.0 Load packages -----------------------------------------------------------
