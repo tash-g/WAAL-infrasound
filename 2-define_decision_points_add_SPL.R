@@ -1,7 +1,7 @@
 
 ## ---------------------------
 ##
-## Script name: PROCESS_GPS_DATA
+## Script name: 2-define_decision_points_add_SPL
 ##
 ## Purpose of script: This script defines decision points, splits possible trajectories
 ## into 'segments', and matches these to modelled microbarom infrasound
@@ -15,10 +15,10 @@
 ## ---------------------------
 
 
-# 0.0 Load the packages ---------------------------------------------------
+### 0.0 Load the packages ------------------------------------------------------
 
 # Packages
-packages <- c("dplyr", "ncdf4", "lubridate", "birk")
+packages <- c("dplyr", "ncdf4", "lubridate", "birk", "pracma")
 
 # Install packages not yet installed - change lib to library path
 #installed_packages <- packages %in% rownames(installed.packages())
@@ -30,54 +30,55 @@ packages <- c("dplyr", "ncdf4", "lubridate", "birk")
 # Load packages
 invisible(lapply(packages, library, character.only = TRUE))
 
-source("FUNCTION_boutFinder.R")
+source("WAAL_infrasound_functions.R")
 
-# 0.1 Load the data -----------------------------------------------------
+### MISSING TRIP STATE
 
-gps_2013 <- read.csv("Data_inputs/WAAL_GPS_2013.csv", stringsAsFactors = F)
+### 0.1 Load the data ----------------------------------------------------------
 
+gps_2013 <- read.csv("Data_inputs/WAAL_2013_gps_labelled.csv", stringsAsFactors = F)
 
-# 1.0 Create travel bouts -----------------------------------------------
+### 1.0 Create travel bouts ----------------------------------------------------
 
-### 1.1 Label the travel bouts -----------------------------------
+## 1.1 Label the travel bouts --------------------------------------------------
 
-## 1.1.1 Index all rows in each trip for each bird
+# 1.1.1 Index all rows in each trip for each bird
 gps_2013Trav <- gps_2013 %>% 
-            group_by(BirdId) %>%
+            group_by(ID) %>%
             mutate(idx = seq(1:n())) %>%
-## 1.1.2 Filter fixes labelled as 'travel'
+# 1.1.2 Filter fixes labelled as 'travel'
             filter(State == "Travel") %>% 
-## 1.1.3 Label individual bouts
+# 1.1.3 Label individual bouts
             mutate(travbout = boutFinder(idx)) %>% 
             data.frame()
             
-### 1.2 Estimate distance travelled in each bout & filter for travel bouts > 20km ----------------------------------
+## 1.2 Estimate distance travelled in each bout & filter for travel bouts > 20km ----------------------------------
 gps_2013Trav20 <- gps_2013Trav %>%
-          group_by(BirdId, travbout) %>%
+          group_by(ID, travbout) %>%
           mutate(TotdisttravBout = sum(DistTrav)) %>%
           filter(TotdisttravBout > 20) %>%
           data.frame()
 
-## Output dataframe - used for sensitivity analysis
-write.csv(gps_2013Trav20, "Data_inputs/gps_2013Trav20.csv", row.names = F)
+# Output dataframe - used for sensitivity analysis
+write.csv(gps_2013Trav20, "Data_inputs/WAAL_gps_2013_Trav20.csv", row.names = F)
 
-### 1.3 Identify the first point of each travelling period (decision point) -----------------------------------
+## 1.3 Identify the first point of each travelling period (decision point) -----------------------------------
 gps_2013Trav20_1stpoint <- gps_2013Trav20 %>%
-                           group_by(BirdId, travbout) %>%
+                           group_by(ID, travbout) %>%
                            slice_head(n = 1) %>%
                            ungroup()
 
 
-# 2.0 Match each travel bout to SPL map -----------------------------------
+### 2.0 Match each travel bout to SPL map --------------------------------------
 
-## NOTE: This script may take several hours to run depending on computer power.
+#### NOTE: This script may take several hours to run depending on computer power.
 
-## 2.1 Point to soundscape data -----------------------------------
+## 2.1 Point to soundscape data ------------------------------------------------
 path_to_IS_maps <- "E:/Soundscapes/"
 IS_folder_maps <- dir(path_to_IS_maps, pattern = "2013")
 GPS_ID_segments <- list()
 
-## 2.2 Define segment parameters -----------------------------------
+## 2.2 Define segment parameters -----------------------------------------------
 aperture <- 30
 transectlength <- 2025
 segmentno <- 360/aperture
@@ -86,8 +87,8 @@ angDiffs <-  c(seq(0, 180, by = aperture),
   
 for (x in 1:length(IS_folder_maps)) {
     
-  ### 2.3 Point to maps and isolate bird data -----------------------------------
-  ## 2.3.1 Point to IS map relevant to bird
+  ## 2.3 Point to maps and isolate bird data -----------------------------------
+  # 2.3.1 Point to IS map relevant to bird
   birdmapid <- IS_folder_maps[x]
   path_to_IS_files <- paste0(path_to_IS_maps, birdmapid, "/Interp/")
     
@@ -108,7 +109,7 @@ for (x in 1:length(IS_folder_maps)) {
                   filter(TripID == IDbirdmap)
     
   # If there are no GPS data for that map, skip
-  if(nrow(gps_2013_ID1) == 0) next
+  if (nrow(gps_2013_ID1) == 0) next
     
   # Check data formatting
   gps_2013_ID1$TripID <- as.factor(as.character(gps_2013_ID1$TripID))
@@ -121,8 +122,6 @@ for (x in 1:length(IS_folder_maps)) {
   
   ## 2.4 Match each GPS fix to the closest SPL map in time and compute segments -----------------------------------
   
-  ### NOTE: GO THROUGH THIS WITH DESKTOP
- 
   for (i in 1:nrow(gps_2013_ID1)) {
       
     # 2.4.1 Find the closest hour for each GPS point in the IS_files
@@ -141,8 +140,8 @@ for (x in 1:length(IS_folder_maps)) {
     IDX <- which(IS_files == Maptobe)
       
     # If no map is found then fill it with NAs.
-    if (length(IDX) == 0){
-        
+    if (length(IDX) == 0) {
+      
       segments = data.frame(
         segment_ID = as.numeric(NA),
         segment_n = as.numeric(NA),
@@ -152,7 +151,6 @@ for (x in 1:length(IS_folder_maps)) {
         maxGdist = as.numeric(NA),
         abs_SPL_2000dB = as.numeric(NA),
         abs_SPL_2000 = as.numeric(NA),
-        pointID = as.character(NA),
         abs_SPL_2000dB_std = as.numeric(NA),
         birdID = as.character(birdmapid),
         TripID = as.character(NA),
@@ -232,9 +230,8 @@ for (x in 1:length(IS_folder_maps)) {
     )
     
         
-    ### Within each soundscape map divide the area in 12 segment of 30 deg each
-        
-    ## 2.5. Get the baz angles for the 12 segments starting from the left side of -----------------------------------
+    ## 2.5 Within each soundscape map divide the area into 12 segments of 30 deg each  -----------------------------------
+    ## Get the baz angles for the 12 segments starting from the left side of
     ## the focal segment, and then clockwise. 
     ## Always the same relative angles from the ontrack one! 
     
@@ -303,12 +300,12 @@ for (x in 1:length(IS_folder_maps)) {
 
     # 2.6.1 Add new empty columns to dataframe to be filled
     newcols <- c("abs_SPL_2000", "abs_SPL_2000dB", "maxGdist", "meanGdist_45dB")
-    segments <-  cbind(segments, setNames( lapply(newcols, function(x) x=NA), newcols) )    
+    segments <-  cbind(segments, setNames( lapply(newcols, function(x) x = NA), newcols) )    
   
     # 2.6.2 Loop through segments and calculate SPL parameters
     for (c in 1:nrow(segments)) {
           
-      if(segment_vert_lef[c] > 0 & segment_vert_rig[c] < 0) {
+      if (segment_vert_lef[c] > 0 & segment_vert_rig[c] < 0) {
         X2_1 <- X2 %>%
           filter(X2$baz_converted >= segment_vert_lef[c]  &
                    X2$baz_converted <= 180)
@@ -407,7 +404,7 @@ for (x in 1:length(IS_folder_maps)) {
     segments$cw_sup_nod = gps_2013_ID1$WindSp[i] * sin(deg2rad(gps_2013_ID1$Dev.wind2[i]))  # cross wind support with no directionality
     
         
-    ## 2.7 Find wind direction for each segment  -----------------------------------
+    ## 2.7 Find wind direction for each segment  -------------------------------
     
     # 2.7.1 Find angular differences between each segment 
     segments$segment_vert_lef.DIFF <- rep(angDiffs, nrow(segments) / segmentno)
@@ -430,8 +427,7 @@ for (x in 1:length(IS_folder_maps)) {
     } else{
       GPS_ID_segments = rbind(GPS_ID_segments, segments)
     }
-    ### NOTE try list approach
-    
+  
   }
   
   print(x)

@@ -24,7 +24,7 @@ deg2rad <- function(deg) {(deg * pi) / (180)}
 gps_2013Trav20 <- read.csv('Data_inputs/gps_2013Trav20.csv', stringsAsFactors=F)
 
 # Change name of TripID 201377.3 to 201377.1
-gps_2013Trav20$TripID[gps_2013Trav20$TripID=="201377.3"] <- "201377.1"
+#gps_2013Trav20$TripID[gps_2013Trav20$TripID=="201377.3"] <- "201377.1"
 
 # Isolate first point
 gps_2013Trav20_1stpoint <-
