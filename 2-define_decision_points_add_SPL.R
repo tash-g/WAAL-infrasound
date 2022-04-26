@@ -30,7 +30,7 @@ packages <- c("dplyr", "ncdf4", "lubridate", "birk", "pracma")
 # Load packages
 invisible(lapply(packages, library, character.only = TRUE))
 
-source("WAAL_infrasound_functions.R")
+source("FUNCTION_boutFinder.R")
 
 ### MISSING TRIP STATE
 
@@ -60,7 +60,7 @@ gps_2013Trav20 <- gps_2013Trav %>%
           data.frame()
 
 # Output dataframe - used for sensitivity analysis
-write.csv(gps_2013Trav20, "Data_inputs/WAAL_gps_2013_Trav20.csv", row.names = F)
+write.csv(gps_2013Trav20, "Data_inputs/WAAL_2013_gps_Trav20.csv", row.names = F)
 
 ## 1.3 Identify the first point of each travelling period (decision point) -----------------------------------
 gps_2013Trav20_1stpoint <- gps_2013Trav20 %>%
@@ -147,10 +147,7 @@ for (x in 1:length(IS_folder_maps)) {
         segment_n = as.numeric(NA),
         segment_vert_lef = as.numeric(NA),
         segment_vert_rig = as.numeric(NA),
-        meanGdist_45dB = as.numeric(NA),
-        maxGdist = as.numeric(NA),
         abs_SPL_2000dB = as.numeric(NA),
-        abs_SPL_2000 = as.numeric(NA),
         abs_SPL_2000dB_std = as.numeric(NA),
         birdID = as.character(birdmapid),
         TripID = as.character(NA),
@@ -167,12 +164,7 @@ for (x in 1:length(IS_folder_maps)) {
         Trip_state = as.character(NA),
         WindSp = as.numeric(NA), # wind speed
         WindDir = as.numeric(NA), # wind direction
-        Dev.wind = as.numeric(NA), # wind direction relative to track direction
         Dev.wind2 = as.numeric(NA), # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
-        tw_sup_d = as.numeric(NA), # tail wind support
-        cw_sup_d = as.numeric(NA), # cross wind support
-        tw_sup_nod = as.numeric(NA), # tail  wind support with no directionality
-        cw_sup_nod = as.numeric(NA), # cross wind support with no directionality
         relDir_adj.bearing = as.numeric(NA),
         stringsAsFactors = FALSE
       ) 
@@ -205,9 +197,9 @@ for (x in 1:length(IS_folder_maps)) {
     longitude <- as.vector(longitude)
     SPL_dB <- as.vector(OSWIdB)
     SPL_Pa <- as.vector(OSWIPa)
-    baz <- ncvar_get(nc_file,"baz")# back azimuth angle, clockwise to north
+    baz <- ncvar_get(nc_file,"baz") # back azimuth angle, clockwise to north
     baz <- as.vector(baz)
-    Gdist <- ncvar_get(nc_file,"dist")# Geodesic distance in degrees
+    Gdist <- ncvar_get(nc_file,"dist") # Geodesic distance in degrees
     X <- as.data.frame(cbind(latitude,longitude,SPL_dB,SPL_Pa, Gdist,baz))
     X2 <- X[complete.cases(X * 0), , drop = FALSE]
         
@@ -298,11 +290,11 @@ for (x in 1:length(IS_folder_maps)) {
         
     ## 2.6 For each segment estimate the abs & standarized SPL and gdist to 45dB -----------------------------------
 
-    # 2.6.1 Add new empty columns to dataframe to be filled
+    # 2.6.0 Add new empty columns to dataframe to be filled
     newcols <- c("abs_SPL_2000", "abs_SPL_2000dB", "maxGdist", "meanGdist_45dB")
     segments <-  cbind(segments, setNames( lapply(newcols, function(x) x = NA), newcols) )    
   
-    # 2.6.2 Loop through segments and calculate SPL parameters
+    # 2.6. Loop through segments and calculate integrated SPL in each
     for (c in 1:nrow(segments)) {
           
       if (segment_vert_lef[c] > 0 & segment_vert_rig[c] < 0) {
@@ -315,41 +307,13 @@ for (x in 1:length(IS_folder_maps)) {
        
         newX <- rbind(X2_1, X2_2)
         
-        abs_SPL_2000 <- newX %>%
-          filter(Gdist <= transectlength) %>%
-          summarise(x = sum(SPL_Pa))
-        segments$abs_SPL_2000[c] <- as.numeric(abs_SPL_2000)
-        
         abs_SPL_2000dB <- newX %>%
           filter(Gdist <= transectlength) %>%
           summarise(x = 10 * log10(sum(SPL_Pa) / (Pref ^ 2)))
         segments$abs_SPL_2000dB[c] <- as.numeric(abs_SPL_2000dB)
         
-        maxGdistbaz <- newX %>%
-          filter(Gdist <= transectlength) %>%
-          group_by(round(baz_converted)) %>%
-          mutate(x = max(Gdist))
-        distang <- data.frame(maxGdistbaz$baz, maxGdistbaz$x)
-
-        segments$maxGdist[c] <- min(as.numeric(maxGdistbaz$x))
-        
-        Gdist_45dB <- newX %>%
-          filter(Gdist <= transectlength) %>%
-          group_by(round(baz_converted)) %>%
-          filter(abs(SPL_dB - 45) == min(abs(SPL_dB - 45)))
-        
-        segments$meanGdist_45dB[c] <-
-          mean(as.numeric(Gdist_45dB$Gdist))
-        
       } else {
-        abs_SPL_2000 <- X2 %>%
-          filter( X2$baz_converted >= segment_vert_lef[c]  &
-              X2$baz_converted <= segment_vert_rig[c] &
-              Gdist <= transectlength ) %>%
-          summarise(x = sum(SPL_Pa))
-        segments$abs_SPL_2000[c] <- as.numeric(abs_SPL_2000)
-        
-            
+       
         abs_SPL_2000dB <- X2 %>%
           filter( X2$baz_converted >= segment_vert_lef[c]  &
               X2$baz_converted <= segment_vert_rig[c] &
@@ -357,25 +321,6 @@ for (x in 1:length(IS_folder_maps)) {
           summarise(x = 10 * log10(sum(SPL_Pa) / (Pref ^ 2)))
         segments$abs_SPL_2000dB[c] <- as.numeric(abs_SPL_2000dB)
         
-        maxGdistbaz <- X2 %>%
-                       filter( X2$baz_converted >= segment_vert_lef[c]  &
-                         X2$baz_converted <= segment_vert_rig[c] &
-                         Gdist <= transectlength) %>%
-                       group_by(round(baz_converted)) %>%
-                       mutate(x = max(Gdist))
-        
-        segments$maxGdist[c] <- min(as.numeric(maxGdistbaz$x))
-        
-        Gdist_45dB <- X2 %>%
-                      filter(X2$baz_converted >= segment_vert_lef[c] & 
-                               X2$baz_converted <= segment_vert_rig[c] & 
-                               Gdist <= transectlength & 
-                               Gdist >= 50) %>%
-                      group_by(round(baz_converted)) %>%
-                      filter(abs(SPL_dB - 45) == min(abs(SPL_dB - 45)))
-        
-        segments$meanGdist_45dB[c] <- mean(as.numeric(Gdist_45dB$Gdist))
-            
           }
         }
         
@@ -395,15 +340,8 @@ for (x in 1:length(IS_folder_maps)) {
     segments$Trip_state = gps_2013_ID1$Trip_state[i]
     segments$WindSp = gps_2013_ID1$WindSp[i] # wind speed
     segments$WindDir = gps_2013_ID1$WindDir[i] # wind direction
-    segments$Dev.wind = gps_2013_ID1$Dev.wind[i] # wind direction relative to track direction
     segments$Dev.wind2 = gps_2013_ID1$Dev.wind2[i] # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
-    
-    segments$tw_sup_d = gps_2013_ID1$WindSp[i] * cos(deg2rad(gps_2013_ID1$Dev.wind[i]))  # tail wind support with directionality
-    segments$cw_sup_d = gps_2013_ID1$WindSp[i] * sin(deg2rad(gps_2013_ID1$Dev.wind[i]))  # cross wind support with directionality
-    segments$tw_sup_nod = gps_2013_ID1$WindSp[i] * cos(deg2rad(gps_2013_ID1$Dev.wind2[i]))  # tail wind support with no directionality
-    segments$cw_sup_nod = gps_2013_ID1$WindSp[i] * sin(deg2rad(gps_2013_ID1$Dev.wind2[i]))  # cross wind support with no directionality
-    
-        
+   
     ## 2.7 Find wind direction for each segment  -------------------------------
     
     # 2.7.1 Find angular differences between each segment 
@@ -414,11 +352,10 @@ for (x in 1:length(IS_folder_maps)) {
     segments$relDir_adj.bearing <-  abs(ifelse(segments$relDir_adj > 180, -360 + segments$relDir_adj, 
                                                 segments$relDir_adj))
         
-    # 2.7.3 Remove unnecessary columns
+    # 2.7.3 Remove columns used for calculation
     segments$segment_vert_lef.DIFF <- NULL
     segments$relDir_adj <- NULL
     segments$relDir <- NULL
-        
         
       }
       
@@ -435,16 +372,14 @@ for (x in 1:length(IS_folder_maps)) {
 }
 
   
-## 2.8 Process segment dataframe  ----------------------------------- 
+### 3.0 Process and output segment dataframe  ----------------------------------- 
 
-# 2.8.1 Tidy dataframe
+# 3.0.1 Tidy dataframe
 GPS_ID_segments <- subset(GPS_ID_segments, !is.na(segment_ID))
-names(GPS_ID_segments)[32] <- "relDir"
+GPS_ID_segments <- rename(GPS_ID_segments, relDir = relDir_adj.bearing)
 GPS_ID_segments$pointID <- paste(GPS_ID_segments$TripID, GPS_ID_segments$counter, sep = ".")
 GPS_ID_segments$segment_ID <- abs(GPS_ID_segments$segment_ID - 1)
   
-# 2.8.2 Write to csv
-write.csv(GPS_ID_segments, paste0("./Data_inputs/GPS_2013_aperture", aperture, "deg.csv"), row.names = F)
+# 3.0.2 Write to csv
+write.csv(GPS_ID_segments, paste0("./Data_inputs/WAAL_2013_gps_processed_aperture", aperture, "deg.csv"), row.names = F)
   
-
-
