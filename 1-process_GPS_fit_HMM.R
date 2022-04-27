@@ -8,8 +8,6 @@
 ##
 ## Author: Dr. Lucia Martina Martin Lopez (with support by Dr Natasha Gillies)
 ##
-## Date Created: 2021-03-16
-##
 ## Email: gilliesne@gmail.com
 ##
 ## ---------------------------
@@ -17,7 +15,7 @@
 
 ### 0.0 Load the packages ------------------------------------------------------
 
-# Packages
+# 0.0.0 Define the packages
 packages <- c("dplyr", "momentuHMM", "ggplot2", "plotly", "ggpubr")
 
 # Install packages not yet installed - change lib to library path
@@ -27,7 +25,7 @@ packages <- c("dplyr", "momentuHMM", "ggplot2", "plotly", "ggpubr")
 #  install.packages(packages[!installed_packages], lib = "C:/Users/libraryPath")
 #}
 
-# Load packages
+# 0.0.1 Load packages
 invisible(lapply(packages, library, character.only = TRUE))
 
 
@@ -47,7 +45,7 @@ if (dir.exists(out.path) == FALSE) {
 
 gps_2013 <- read.csv("Data_inputs/WAAL_2013_gps_filtered.csv", stringsAsFactors = F)
 
-# Make ID a factor
+# 0.2.1 Make ID a factor
 gps_2013$BirdId <- as.factor(gps_2013$BirdId)
 length(unique(gps_2013$BirdId)) # 89 Trips for 89 Individuals
 
@@ -114,11 +112,11 @@ m1 <- fitHMM(
 
 plotPR(m1) 
 
-# Store model as an .rdata object so you don't have to run from scratch each time
+# 1.2.1 Store model as an .rdata object so you don't have to run from scratch each time
 file.out <- paste0("Data_outputs/WAAL_2013_HMM.RData")
 #save(m1, file = file.out)
 
-load(file.out)
+#load(file.out)
 
 
 ### 2.0 Assign behavioural states  ---------------------------------------------
@@ -129,33 +127,33 @@ hmm_data_out$State <- viterbi(m1)
 
 ## 2.2 Assign behaviours  ------------------------------------------------------
 
-# 2.2.1 Assess step/angle distributions
-ggplot(aes(x = step, fill = State), data = hmm_data_out) + geom_histogram(alpha = 0.5)
-ggplot(aes(x = angle, fill = State), data = hmm_data_out) + geom_histogram(alpha = 0.5)
+# 2.2.0 Assess step/angle distributions
+ggplot(aes(x = step, fill = as.factor(State)), data = hmm_data_out) + geom_histogram(alpha = 0.5)
+ggplot(aes(x = angle, fill = as.factor(State)), data = hmm_data_out) + geom_histogram(alpha = 0.5)
 
-# 2.2.2 Label each state and check classification
+# 2.2.1 Label each state and check classification
 hmm_data_out$State[hmm_data_out$State == 1] <- "Travel"
 hmm_data_out$State[hmm_data_out$State == 2] <- "Search"
 hmm_data_out$State[hmm_data_out$State == 3] <- "Rest"
 
-# 2.2.3 Check states
+# 2.2.2 Check states
 table(hmm_data_out$State)
 
-#Rest Search Travel 
-#23888  28650  32828
+#  Rest Search Travel 
+# 23904  28594  32727 
 
-# 2.2.4 Calculate percentage time spent in each state 
+# 2.2.3 Calculate percentage time spent in each state 
 hmm_data_out %>%
   group_by(State) %>%
   summarize(counts = n()) %>%
   mutate(per = counts / sum(counts) * 100) %>%
   collect()
 
-#State  counts   per
-#<chr>   <int> <dbl>
-#1 Rest    23888  28.0
-#2 Search  28650  33.6
-#3 Travel  32828  38.5
+#  State  counts   per
+#  <chr>   <int> <dbl>
+#1 Rest    23904  28.0
+#2 Search  28594  33.6
+#3 Travel  32727  38.4
 
 
 ### 3.0 Identify trip stage ----------------------------------------------------
@@ -166,16 +164,15 @@ hmm_data_out %>%
 
 hmm_data_out$ID <- as.factor(as.character(hmm_data_out$ID))
 
-## Distance traveled since the bird left the colony, 
 hmm_data_out <- hmm_data_out %>%
                 group_by(ID) %>%
-  # 3.1.1 Cumulative distance since leaving colony
+  # 3.1.0 Cumulative distance since leaving colony
                 mutate(cum_trav_dist = cumsum(DistTrav),
-  # 3.1.2 Percentage distance covered
+  # 3.1.1 Percentage distance covered
                        per_trav_dist = cum_trav_dist*100/max(cum_trav_dist),
-  # 3.1.3 Index each fix within a trip 
-                       counter = row_number(BirdId),
-  # 3.1.4 Total trip time in minutes
+  # 3.1.2 Index each fix within a trip 
+                       counter = row_number(ID),
+  # 3.1.3 Total trip time in minutes
                        Trip_time =  counter * 15 / max(counter * 15)) %>%
                 data.frame()
   
@@ -201,7 +198,7 @@ hmm_data_out <- hmm_data_out %>%
 ## as the middle stage, and the remainder as the outward or return stages, as 
 ## appropriate.
 
-# 3.3.1 Plot distance from colony as proportion of maximum distance from colony
+# 3.3.0 Plot distance from colony as proportion of maximum distance from colony
 FIGS2_A <- ggplot(data = hmm_data_out) +
   geom_point(aes(y = dcol_dmax, x = Trip_time), size = 0.1) +
   labs(y = bquote(~italic(d)[col]~"/"~italic(d)[max]), 
@@ -215,7 +212,7 @@ FIGS2_A <- ggplot(data = hmm_data_out) +
         plot.tag = element_text(size = 22)) 
 
 
-# 3.3.2 Calculate variance in dcol/dmax for all locations occuring before t/tmax
+# 3.3.1 Calculate variance in dcol/dmax for all locations occuring before t/tmax
 # (var_asc) and after t/tmax (var_desc)
 var_asc <- c()
 var_desc <- c()
@@ -236,7 +233,7 @@ var_asc <- unlist(var_asc)
 var_desc <- unlist(var_desc)
 idx <- seq(0, 1, length.out = 50)
 
-# 3.3.3 Plot variance in d/dmax before and after t/tmax
+# 3.3.2 Plot variance in d/dmax before and after t/tmax
 FIGS2_B <- ggplot() +
   geom_point(aes(y = var_asc, x = idx)) +
   geom_point(aes(y = var_desc, x = idx, color = "red")) +
@@ -273,9 +270,20 @@ hmm_data_out <- hmm_data_out %>%
 
 ### 4.0 Output the data ---------------------------------------------------------------------
 
-# 4.0.1 Rename x and y columns
-hmm_data_out <- rename(hmm.data.out, x_lon = x, y_lat = y)
+# 4.0.0 Rename x and y columns
+hmm_data_out <- rename(hmm_data_out, x_lon = x, y_lat = y)
 
-# 4.0.2 Write the CSV
+# 4.0.1 Remove columns not used in subsequent processing or analysis
+cols_rm <- c("ID", "step", "angle", "cum_trav_dist", "per_trav_dist", "Trip_time", "dcol_dmax")
+hmm_data_out[,c(cols_rm)] <- NULL
+
+# 4.0.2 Check encoding of variables
+hmm_data_out$BirdID <- as.factor(as.character(hmm_data_out$BirdID))
+hmm_data_out$TripID <- as.factor(as.character(hmm_data_out$TripID))
+factor_vars <- c("Sex", "State", "Trip_state")
+hmm_data_out[factor_vars] <- lapply(hmm_data_out[factor_vars], factor)
+hmm_data_out$DateTime <- as.POSIXct(hmm_data_out$DateTime, format = "%Y-%m-%d %H:%M:%S")
+
+# 4.0.3 Write the CSV
 write.csv(hmm_data_out, "Data_inputs/WAAL_2013_gps_labelled.csv", row.names = F)
 

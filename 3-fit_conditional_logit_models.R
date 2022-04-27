@@ -19,7 +19,7 @@
 
 ### 0.0 Load packages ----------------------------------------------------------
 
-# Packages
+# 0.0.0 Define the Packages
 packages <- c("survival", "ggplot2", "grid", "dplyr", "emmeans", "sjPlot", 
               "tibble", "ggpubr")
 
@@ -30,14 +30,14 @@ packages <- c("survival", "ggplot2", "grid", "dplyr", "emmeans", "sjPlot",
 #  install.packages(packages[!installed_packages], lib = "C:/Users/libraryPath")
 #}
 
-# Load packages
+# 0.0.1 Load packages
 invisible(lapply(packages, library, character.only = TRUE))
 
 ## Install hab package for QIC comparison
 #devtools::install_github("basille/hab")
 
 
-## 0.1 Create figues folder if one does not exist ------------------------------
+## 0.1 Create figures folder if one does not exist ------------------------------
 
 out.path <- "./Figures/"
 
@@ -47,24 +47,24 @@ if (dir.exists(out.path) == FALSE) {
 
 ## 0.2 Load the data -----------------------------------------------------------
 
-modDat <- data.table::fread("Data_inputs/WAAL_2013_gps_processed_aperture30.csv", 
+modDat <- data.table::fread("Data_inputs/WAAL_2013_gps_processed_aperture30deg.csv", 
                             data.table = F)
 
-modDat <- modDat[,c(11, 1, 6, 10, 14, 22, 23, 31, 32)]
-
 # 0.2.1 Rename and process variables
-names(modDat)[2] <- "case"
+modDat <- rename(modDat, case = segment_ID)
 
 factor_vars <- c("TripID", "birdID", "Sex", "Trip_state", "pointID")
 modDat[factor_vars] <- lapply(modDat[factor_vars], factor)
 
 # 0.2.2 Retain original variables for scaling later
 modDat$abs_SPL_2000dB.OG <- modDat$abs_SPL_2000dB
+modDat$abs_SPL_2000dB_std.OG <- modDat$abs_SPL_2000dB_std
 modDat$relDir.OG <- modDat$relDir
 modDat$WindSp.OG <- modDat$WindSp
 
-# Remove inf variables
+# Remove inf/NA variables
 modDat <- modDat[!is.infinite(modDat$abs_SPL_2000dB),]
+modDat <- modDat[!is.na(modDat$abs_SPL_2000dB_std),]
 
 ## 0.3 Check data structure ----------------------------------------------------
 
@@ -97,9 +97,10 @@ modDat %>%
 #### and females separately (to avoid blurring results)
 
 # 1.0.1 Scale continuous variables and remove NA variables
-modDat[, c(3, 7, 8)] <-
-  lapply(modDat[, c(3, 7, 8)], function(x)
-    c(scale(x, center = TRUE, scale = TRUE))) # abs_SPL_2000dB WindSp relDir
+vars_scale <- c("WindSp", "relDir")
+modDat[, vars_scale] <-
+  lapply(modDat[, vars_scale], function(x)
+    c(scale(x, center = TRUE, scale = TRUE)))
 
 # 1.0.2 Separate males and females
 modDat.F <- subset(modDat, Sex == "F")
@@ -107,7 +108,6 @@ modDat.F <- droplevels(modDat.F)
 modDat.M <- subset(modDat, Sex == "M")
 modDat.M <- droplevels(modDat.M)
 
-set.seed(817)
 
 ## 1.1 Set up the models  ------------------------------------------------------
 
@@ -122,12 +122,12 @@ summary(H_wind.M)
 
 
 ### wind + SPL_model ###
-H_SPL.F <- clogit(case ~ abs_SPL_2000dB*relDir + abs_SPL_2000dB:WindSp + relDir:WindSp +
+H_SPL.F <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB_std:WindSp + relDir:WindSp +
                     strata(pointID), cluster = birdID, 
                    robust = TRUE, method = 'approximate', data = modDat.F)
 summary(H_SPL.F) 
 
-H_SPL.M <- clogit(case ~ abs_SPL_2000dB*relDir + abs_SPL_2000dB:WindSp + relDir:WindSp +
+H_SPL.M <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB_std:WindSp + relDir:WindSp +
                           strata(pointID), cluster = birdID, 
                           robust = TRUE, method = 'approximate',  data = modDat.M)
 summary(H_SPL.M) 

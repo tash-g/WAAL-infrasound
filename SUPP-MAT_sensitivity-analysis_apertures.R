@@ -147,7 +147,6 @@ for (a in 1:length(apertures)) {
           per_trip_time = as.numeric(NA),
           Trip_state = as.character(NA),
           WindSp = as.numeric(NA), # wind speed
-          WindDir = as.numeric(NA), # wind direction
           Dev.wind2 = as.numeric(NA), # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
           relDir_adj.bearing = as.numeric(NA),
             stringsAsFactors = FALSE
@@ -274,9 +273,8 @@ for (a in 1:length(apertures)) {
       
       ## 2.4 For each segment estimate the abs & standarized SPL and gdist to 45dB ----
         
-      # 2.4.0 Add new empty columns to dataframe to be filled
-      newcols <- c("abs_SPL_2000", "abs_SPL_2000dB", "maxGdist", "meanGdist_45dB")
-      segments <-  cbind(segments, setNames( lapply(newcols, function(x) x = NA), newcols) ) 
+      # 2.4.0 AAdd new empty column to dataframe to be filled
+      segments$abs_SPL_2000dB <- NA
       
       # 2.6. Loop through segments and calculate integrated SPL in each
       for (c in 1:nrow(segments)) {
@@ -323,7 +321,6 @@ for (a in 1:length(apertures)) {
       segments$per_trip_time = gps_2013_ID1$Trip_time[i] * 100
       segments$Trip_state = gps_2013_ID1$Trip_state[i]
       segments$WindSp = gps_2013_ID1$WindSp[i] # wind speed
-      segments$WindDir = gps_2013_ID1$WindDir[i] # wind direction
       segments$Dev.wind2 = gps_2013_ID1$Dev.wind2[i] # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
       
         

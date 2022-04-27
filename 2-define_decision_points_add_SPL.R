@@ -8,8 +8,6 @@
 ##
 ## Author: Dr. Lucia Martina Martin Lopez (with support by Dr Natasha Gillies)
 ##
-## Date Created: 2021-03-16
-##
 ## Email: gilliesne@gmail.com
 ##
 ## ---------------------------
@@ -17,7 +15,7 @@
 
 ### 0.0 Load the packages ------------------------------------------------------
 
-# Packages
+## 0.0.0 Define the packages
 packages <- c("dplyr", "ncdf4", "lubridate", "birk", "pracma")
 
 # Install packages not yet installed - change lib to library path
@@ -27,12 +25,10 @@ packages <- c("dplyr", "ncdf4", "lubridate", "birk", "pracma")
 #  install.packages(packages[!installed_packages], lib = "C:/Users/libraryPath")
 #}
 
-# Load packages
+# 0.0.1 Load packages
 invisible(lapply(packages, library, character.only = TRUE))
 
 source("FUNCTION_boutFinder.R")
-
-### MISSING TRIP STATE
 
 ### 0.1 Load the data ----------------------------------------------------------
 
@@ -44,17 +40,19 @@ gps_2013 <- read.csv("Data_inputs/WAAL_2013_gps_labelled.csv", stringsAsFactors 
 
 # 1.1.1 Index all rows in each trip for each bird
 gps_2013Trav <- gps_2013 %>% 
-            group_by(ID) %>%
+            group_by(TripID) %>%
             mutate(idx = seq(1:n())) %>%
 # 1.1.2 Filter fixes labelled as 'travel'
             filter(State == "Travel") %>% 
 # 1.1.3 Label individual bouts
             mutate(travbout = boutFinder(idx)) %>% 
             data.frame()
+
+gps_2013Trav$travbout <- as.factor(as.character(gps_2013Trav$travbout))
             
 ## 1.2 Estimate distance travelled in each bout & filter for travel bouts > 20km ----------------------------------
 gps_2013Trav20 <- gps_2013Trav %>%
-          group_by(ID, travbout) %>%
+          group_by(TripID, travbout) %>%
           mutate(TotdisttravBout = sum(DistTrav)) %>%
           filter(TotdisttravBout > 20) %>%
           data.frame()
@@ -64,7 +62,7 @@ write.csv(gps_2013Trav20, "Data_inputs/WAAL_2013_gps_Trav20.csv", row.names = F)
 
 ## 1.3 Identify the first point of each travelling period (decision point) -----------------------------------
 gps_2013Trav20_1stpoint <- gps_2013Trav20 %>%
-                           group_by(ID, travbout) %>%
+                           group_by(TripID, travbout) %>%
                            slice_head(n = 1) %>%
                            ungroup()
 
@@ -158,12 +156,8 @@ for (x in 1:length(IS_folder_maps)) {
         y_lat = as.numeric(NA),
         State = as.character(NA),
         Dist_cro_shelf = as.numeric(NA),
-        max_dist = as.numeric(NA),
-        per_trav_dist = as.numeric(NA),
-        per_trip_time = as.numeric(NA),
         Trip_state = as.character(NA),
         WindSp = as.numeric(NA), # wind speed
-        WindDir = as.numeric(NA), # wind direction
         Dev.wind2 = as.numeric(NA), # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
         relDir_adj.bearing = as.numeric(NA),
         stringsAsFactors = FALSE
@@ -172,7 +166,7 @@ for (x in 1:length(IS_folder_maps)) {
         
       }   else {
         
-     ID = IS_files[IDX]
+    ID = IS_files[IDX]
         
     # 2.4.2 Extract the dateTime from the SPL map 
     a <- paste0(substr(ID, 19, 22),
@@ -290,10 +284,9 @@ for (x in 1:length(IS_folder_maps)) {
         
     ## 2.6 For each segment estimate the abs & standarized SPL and gdist to 45dB -----------------------------------
 
-    # 2.6.0 Add new empty columns to dataframe to be filled
-    newcols <- c("abs_SPL_2000", "abs_SPL_2000dB", "maxGdist", "meanGdist_45dB")
-    segments <-  cbind(segments, setNames( lapply(newcols, function(x) x = NA), newcols) )    
-  
+    # 2.6.0 Add new empty column to dataframe to be filled
+    segments$abs_SPL_2000dB <- NA
+   
     # 2.6. Loop through segments and calculate integrated SPL in each
     for (c in 1:nrow(segments)) {
           
@@ -334,12 +327,8 @@ for (x in 1:length(IS_folder_maps)) {
     segments$y_lat = gps_2013_ID1$y_lat[i]
     segments$State = gps_2013_ID1$State[i]
     segments$Dist_cro_shelf = gps_2013_ID1$Dist_cro_shelf[i]
-    segments$max_dist = gps_2013_ID1$max_dist[i]
-    segments$per_trav_dist = gps_2013_ID1$per_trav_dist[i]
-    segments$per_trip_time = gps_2013_ID1$Trip_time[i] * 100
     segments$Trip_state = gps_2013_ID1$Trip_state[i]
     segments$WindSp = gps_2013_ID1$WindSp[i] # wind speed
-    segments$WindDir = gps_2013_ID1$WindDir[i] # wind direction
     segments$Dev.wind2 = gps_2013_ID1$Dev.wind2[i] # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
    
     ## 2.7 Find wind direction for each segment  -------------------------------
@@ -374,12 +363,20 @@ for (x in 1:length(IS_folder_maps)) {
   
 ### 3.0 Process and output segment dataframe  ----------------------------------- 
 
-# 3.0.1 Tidy dataframe
+# 3.0.0 Tidy dataframe
+
+# Remove NA variables
 GPS_ID_segments <- subset(GPS_ID_segments, !is.na(segment_ID))
+# Rename relDir columns 
 GPS_ID_segments <- rename(GPS_ID_segments, relDir = relDir_adj.bearing)
+# Make (decision) Point ID variable
 GPS_ID_segments$pointID <- paste(GPS_ID_segments$TripID, GPS_ID_segments$counter, sep = ".")
+# Make focal segment '1' and non-focal '0'
 GPS_ID_segments$segment_ID <- abs(GPS_ID_segments$segment_ID - 1)
-  
+# Remove columns not relevant for analysis
+cols_rm <- c("segment_vert_lef", "segment_vert_rig", "mapID", "counter", "Dev.wind2")
+GPS_ID_segments[,cols_rm] <- NULL
+
 # 3.0.2 Write to csv
 write.csv(GPS_ID_segments, paste0("./Data_inputs/WAAL_2013_gps_processed_aperture", aperture, "deg.csv"), row.names = F)
   
