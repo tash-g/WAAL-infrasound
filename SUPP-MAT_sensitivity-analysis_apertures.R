@@ -18,7 +18,7 @@
 ### 0.0 Load packages ----------------------------------------------------------
 
 # 0.0.0 Specify the packages
-packages <- c("dplyr", "ncdf4", "lubridate", "birk", "ggplot2", "survival")
+packages <- c("dplyr", "ncdf4", "lubridate", "birk", "ggplot2", "survival", "ggpubr")
 
 # Install packages not yet installed - change lib to library path
 #installed_packages <- packages %in% rownames(installed.packages())
@@ -142,9 +142,6 @@ for (a in 1:length(apertures)) {
           y_lat = as.numeric(NA),
           State = as.character(NA),
           Dist_cro_shelf = as.numeric(NA),
-          max_dist = as.numeric(NA),
-          per_trav_dist = as.numeric(NA),
-          per_trip_time = as.numeric(NA),
           Trip_state = as.character(NA),
           WindSp = as.numeric(NA), # wind speed
           Dev.wind2 = as.numeric(NA), # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
@@ -316,9 +313,6 @@ for (a in 1:length(apertures)) {
       segments$y_lat = gps_2013_ID1$y_lat[i]
       segments$State = gps_2013_ID1$State[i]
       segments$Dist_cro_shelf = gps_2013_ID1$Dist_cro_shelf[i]
-      segments$max_dist = gps_2013_ID1$max_dist[i]
-      segments$per_trav_dist = gps_2013_ID1$per_trav_dist[i]
-      segments$per_trip_time = gps_2013_ID1$Trip_time[i] * 100
       segments$Trip_state = gps_2013_ID1$Trip_state[i]
       segments$WindSp = gps_2013_ID1$WindSp[i] # wind speed
       segments$Dev.wind2 = gps_2013_ID1$Dev.wind2[i] # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
@@ -355,40 +349,51 @@ for (a in 1:length(apertures)) {
   }
   tik <- Sys.time()
   
-  tik-tok
+  tik - tok
   
-  ## Process output 
+  ## 2.6 Process output --------------------------------------------------------
+  
+  # 2.6.0 Remove NA segments
   GPS_ID_segments <- subset(GPS_ID_segments, !is.na(segment_ID))
+  # 2.6.1 Rename relDir column
   GPS_ID_segments <- rename(GPS_ID_segments, relDir = relDir_adj.bearing)
+  # 2.6.2 Make (decision) point ID variable
   GPS_ID_segments$pointID <- paste(GPS_ID_segments$TripID, GPS_ID_segments$counter, sep = ".")
+  # 2.6.3 Make focal segment '1' and non-focal '0'
   GPS_ID_segments$segment_ID <- abs(GPS_ID_segments$segment_ID - 1)
+  # 2.6.4 Remove columns not relevant for analysis
+  cols_rm <- c("segment_vert_lef", "segment_vert_rig", "mapID", "counter", "Dev.wind2")
+  GPS_ID_segments[,cols_rm] <- NULL
   
-  ## Write to csv
+  ## 2.7 Write to csv ----------------------------------------------------------
   write.csv(GPS_ID_segments, paste0("./Data_inputs/WAAL_2013_GPS_segmentAperture_", segmentaperture, "deg.csv"), row.names = F)
   
 }
 
 
-### 3.0 Fit best models to each aperture (15, 60, 90) --------------------------
+
+
+### 3.0 For each aperture, calculate mean SPL diff focal vs non-focal  ---------
 
 # 3.0.0 Define apertures and set list
 apertures <- c(15, 30, 60, 90)
-model_list <- vector(mode = "list", length = length(apertures))
+variance_output <- vector(mode = "list", length = length(apertures))
+model_output <- vector(mode = "list", length = length(apertures))
 
 for (i in 1:length(apertures)) {
-
+  
   # 3.0.1 Set segment aperture
   segmentaperture <- apertures[i]
   
   # 3.0.2 Load the data
   modDat <- data.table::fread(paste0("./Data_inputs/WAAL_2013_GPS_segmentAperture_", apertures[i], "deg.csv"), 
-                  stringsAsFactors = F, data.table = F)
-
-  # Remove infinite/NA values
-  modDat <- subset(modDat, !is.na(abs_SPL_2000dB))
-  modDat <- subset(modDat, !is.infinite(abs_SPL_2000dB))
+                              stringsAsFactors = F, data.table = F)
   
-  # 3.0.3 Rename and process variables
+  # 3.0.3 Remove infinite/NA values
+  modDat <- subset(modDat, !is.na(abs_SPL_2000dB_std))
+  modDat <- subset(modDat, !is.infinite(abs_SPL_2000dB_std))
+  
+  # 3.0.4 Rename and process variables
   names(modDat)[1] <- "case"
   
   modDat$birdID <- modDat$birdID %>%
@@ -398,55 +403,133 @@ for (i in 1:length(apertures)) {
   factor_vars <- c("TripID", "birdID", "Sex", "Trip_state", "pointID")
   modDat[factor_vars] <- lapply(modDat[factor_vars], factor)
   
-  # 3.0.4 Scale continuous variables
-  cont_vars <- c("abs_SPL_2000dB", "WindSp", "relDir")
-  modDat[cont_vars] <- lapply(modDat[cont_vars], function(x) c(scale(x, center = TRUE, scale = TRUE)))
-  
   # 3.0.5 Separate males and females
   modDat.F <- subset(modDat, Sex == "F")
   modDat.M <- subset(modDat, Sex == "M")
   
-  ## 3.1 Set up the models -----------------------------------------------------
-  RSF_mod.F <- clogit(case ~ relDir + relDir:WindSp + strata(pointID), cluster = birdID, 
-                      robust = TRUE, method = 'approximate', data = modDat.F)
+  ## 3.1 Calculate mean (std) SPL for focal vs non-focal segments --------------
+  SPL_pars.F <- tapply(modDat.F$abs_SPL_2000dB_std, modDat.F$case, function(x) c(mean(x), sd(x))) 
+  SPL_pars.M <- tapply(modDat.M$abs_SPL_2000dB_std, modDat.M$case, function(x) c(mean(x), sd(x))) 
   
-  RSF_mod.M <- clogit(case ~ abs_SPL_2000dB*relDir + abs_SPL_2000dB:WindSp + relDir:WindSp +
-                      strata(pointID), cluster = birdID, 
+  ## 3.2 Get mean (abs) SPL for focal vs non-focal segments --------------------
+  SPL_pars_abs.F <- modDat.F %>% 
+                  group_by(pointID) %>%
+                  summarise(mean_focal = tapply(abs_SPL_2000dB, case, mean)[2],
+                            mean_nonfocal = tapply(abs_SPL_2000dB, case, mean)[1]) %>%
+                  mutate(sex = "F") %>%
+                  data.frame()
+  
+  SPL_pars_abs.M <- modDat.M %>% 
+                  group_by(pointID) %>%
+                  summarise(mean_focal = tapply(abs_SPL_2000dB, case, mean)[2],
+                            mean_nonfocal = tapply(abs_SPL_2000dB, case, mean)[1]) %>%
+                  mutate(sex = "M") %>%
+                  data.frame()
+                
+  SPL_pars_abs <- rbind(SPL_pars_abs.F, SPL_pars_abs.M)
+  
+  # 3.2.1 Turn into dataframe
+  SPL_output.F <- t(data.frame(nonfocal = unlist(SPL_pars.F[1]), focal = unlist(SPL_pars.F[2])))
+  SPL_output.M <- t(data.frame(nonfocal = unlist(SPL_pars.M[1]), focal = unlist(SPL_pars.M[2])))
+  
+  SPL_output <- cbind(rep(rownames(SPL_output.F), 2), 
+                      rbind(data.frame(SPL_output.F, row.names = NULL), 
+                            data.frame(SPL_output.M, row.names = NULL)),
+                      aperture = segmentaperture, 
+                      absMean = c(mean(SPL_pars_abs.F$mean_nonfocal),
+                                  mean(SPL_pars_abs.F$mean_focal),
+                                  mean(SPL_pars_abs.M$mean_nonfocal),
+                                  mean(SPL_pars_abs.M$mean_focal)),
+                      sex = rep(c("F","M"), each = 2))
+  
+  colnames(SPL_output)[1:3] <- c("segment", "mean", "sd")
+
+  variance_output[[i]] <- SPL_output
+  
+  
+# 4.0 Fit model to aperture data -----------------------------------------------
+
+  # 4.0.0 Scale continuous variables
+  cont_vars <- c("WindSp", "relDir")
+  modDat[cont_vars] <- lapply(modDat[cont_vars], function(x) c(scale(x, center = TRUE, scale = TRUE)))
+  
+ 
+  ## 4.1 Set up the models -----------------------------------------------------
+  RSF_mod.F <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB:WindSp + relDir:WindSp +
+                        strata(pointID), cluster = birdID, 
+                      robust = TRUE, method = 'approximate',  data = modDat.F)
+  
+  RSF_mod.M <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB:WindSp + relDir:WindSp +
+                        strata(pointID), cluster = birdID, 
                       robust = TRUE, method = 'approximate',  data = modDat.M)
   
-  ## 3.2 Get effect sizes and p values -----------------------------------------
+  ## 4.2 Get effect sizes  -----------------------------------------------------
   
-  # 3.2.0 FEMALES
+  # 4.2.0 FEMALES
   covariates.F <- rownames(data.frame(summary(RSF_mod.F)$coefficients))
   coefs.F <- data.frame(summary(RSF_mod.F)$coefficients)$exp.coef.
-  pvalues.F <- data.frame(summary(RSF_mod.F)$coefficients)$Pr...z..
   
-  output.F <- data.frame(cov = covariates.F, coefs = coefs.F, pvalues = pvalues.F, aperture = segmentaperture, sex = "F")
+  output.F <- data.frame(cov = covariates.F, coefs = coefs.F, aperture = segmentaperture, sex = "F")
   
-  # 3.2.1 MALES
+  # 4.2.1 MALES
   covariates.M <- rownames(data.frame(summary(RSF_mod.M)$coefficients))
   coefs.M <- data.frame(summary(RSF_mod.M)$coefficients)$exp.coef.
-  pvalues.M <- data.frame(summary(RSF_mod.M)$coefficients)$Pr...z..
-  
-  output.M <- data.frame(cov = covariates.M, coefs = coefs.M, pvalues = pvalues.M, aperture = segmentaperture, sex = "M")
+
+  output.M <- data.frame(cov = covariates.M, coefs = coefs.M, aperture = segmentaperture, sex = "M")
   
   output <- rbind(output.F, output.M)
-  model_list[[i]] <- output
+  model_output[[i]] <- output
   
 }
 
-## 3.3 Bind up the output ------------------------------------------------------
-sensitivity_output.coefs <- do.call("rbind", model_list)
+
+### 5.0 Bind up output from variance comparison and models ---------------------
+
+sensitivity_output.var <- do.call("rbind", variance_output)
+sensitivity_output.coefs <- do.call("rbind", model_output)
+
+## 5.1 Get variance differences for SPL in focal vs non-focal ------------------
+
+variance_summary <- sensitivity_output.var %>%
+                    group_by(sex, aperture) %>%
+                    summarise(mean_diff = mean[2] - mean[1],
+                              sd_diff = sd[2] - sd[1],
+                              abs_diff = absMean[2] - absMean[1]) %>%
+                    data.frame()
 
 
-### 4.0 Plot the results -------------------------------------------------------
+### 6.0 Plot the results -------------------------------------------------------
 
-# 4.0.0 Make a plotting dataframe
+# 6.0.0 Make a plotting dataframe for effect sizes
 plotDat <- sensitivity_output.coefs
 
-#### FIGURE S3 - Plot of effect size output ------------------------------------
-png(filename = "Figures/FIGS3_sensitivity-aperture-coefs.png", width = 9, height = 7, units = "in", res = 600)
-ggplot(aes(x = aperture, y = coefs, group = cov, col = cov), data = plotDat) + 
+## 6.1 Make a variance change plot ---------------------------------------------
+
+col_M <- "#E1BE6A" # yellow
+col_F <- "#40B0A6" # teal
+
+variance_plot <- ggplot(aes(x = aperture, y = abs_diff, group = sex, col = sex), data = variance_summary) +
+  geom_point() +
+  geom_line() +
+  ylim(0, 0.3) +
+  labs(y = "Difference in SPL (dB)", x = "Aperture size (degrees)", col = "Sex") +
+  scale_colour_manual(values = c(col_F, col_M)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18),
+        legend.position = c(0.09, 0.92),
+        legend.box.background = element_blank(),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16))
+
+
+## 6.2 Make an effect size plot ------------------------------------------------
+
+effects_plot <- ggplot(aes(x = aperture, y = coefs, group = cov, col = cov), data = plotDat) + 
   geom_point() + geom_line() +
   geom_hline(yintercept = 1, lty = "dashed") +
   facet_grid(.~sex) + 
@@ -456,5 +539,15 @@ ggplot(aes(x = aperture, y = coefs, group = cov, col = cov), data = plotDat) +
   theme(axis.text.x = element_text(size = 16),
         axis.text.y = element_text(size = 16),
         axis.title.x = element_text(size = 18),
-        axis.title.y = element_text(size = 18))
+        axis.title.y = element_text(size = 18),
+        legend.position = c(0.15,0.85),
+        legend.box.background = element_blank(),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16))
+
+#### FIGURE S3 - Plot of sensitivity analysis ----------------------------------
+png(filename = "Figures/FIGS3_sensitivity-aperture-coefs.png", width = 15, height = 7, units = "in", res = 600)
+ggarrange(variance_plot, effects_plot, ncol = 2, widths = c(0.8, 1))
 dev.off()

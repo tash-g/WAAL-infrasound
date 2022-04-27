@@ -13,9 +13,9 @@ A short description of each script is given below.
 - **2-define_decision_points_add_SPL.R** In this script, decision points (as defined in the text) are identified, microbarom sound pressure levels (SPL) are matched to each GPS fix, and the available area around the bird is split into 12 segments of 30 degrees each, ready for analysis. It produces the final datset for analysis. _Note: Loading, processing, and matching the microbarom maps requires significant processing power and so this script may take several hours to run._
 - **3-fit_conditional_logit_models.R** This script fits conditional logistic regression models to the data to compare SPL conditions in selected versus non-selected segments. It fits and compares the models and produces summaries of the output, and includes code to produce figures 2 and 3 in the manuscript. It uses the dataset _'WAAL_2013_gps_processed_aperture30'_, which is produced using scripts 1 and 2. 
 - **FUNCTION_boutFinder.R** Contains 'boutFinder' function, which is used to find continuous bouts of flight.
-- **SUPP_MAT_gps-plot.R** This script contains the code to produce Figure S1, which shows a plot of all GPS tracks in the study, coloured by sex. It uses the dataset _'WAAL_2013_gps_labelled.csv'_, which is produced in script 1.
-- **SUPP-INF_HMM-manual_validation.R** This script contains the code to compare the behaviour outputs of the HMM to manual classification and assess accuracy.
-- **SUPP_INF_senstivity-analysis_apertures.R** This script contains the code to compare different aperture sizes for the segments. It first re-runs the processing in script 2 and outputs dataframes where aperture size has been varied. The best-fitting conditional logit models are then fitted to these datasets, and the effect sizes and directions of the output compared between the different aperture sizes. 
+- **SUPP-MAT_gps-plot.R** This script contains the code to produce Figure S1, which shows a plot of all GPS tracks in the study, coloured by sex. It uses the dataset _'WAAL_2013_gps_labelled.csv'_, which is produced in script 1.
+- **SUPP-MAT_HMM-manual_validation.R** This script contains the code to compare the behaviour outputs of the HMM to manual classification and assess accuracy.
+- **SUPP_MAT_senstivity-analysis_apertures.R** This script contains the code to compare different aperture sizes for the segments. It first re-runs the processing in script 2 and outputs dataframes where aperture size has been varied. The best-fitting conditional logit models are then fitted to these datasets, and the effect sizes and directions of the output compared between the different aperture sizes. 
 
 ## Data inputs 
 These datasets are used in the above scripts. The first dataset, 'WAAL_2013_gps_filtered' is processed using scripts 1 and 2 to produce the remaining datasets, but ready-made versions of these are provided for quick replication. Note that individual IDs have been recoded and so cannot be linked to existing datasets. Please contact the authors if you would like to make sure of these, as we may be able to offer addiitonal information, data, or advice. 
@@ -31,7 +31,7 @@ These datasets are used in the above scripts. The first dataset, 'WAAL_2013_gps_
 	- _Dist_cro_shelf_: Distance from Crozet shelf, km (numeric)
 	- _Longitude_: Longitudinal position of GPS fix (numeric)
 	- _Latitude_: Latitudinal position of GPS fix (numeric)
-- **WAAL_2013_gps_labelled.csv** This dataset contains the same GPS fix information as the 'WAAL_2013_gps_filtered.csv' file, except each fix has been labelled with a behaviour and trip stage. The variables are as follows:
+- **WAAL_2013_gps_labelled.csv** This dataset contains the same GPS fix information as the _'WAAL_2013_gps_filtered.csv'_ file, except each fix has been labelled with a behaviour and trip stage. The variables are as follows:
 	- _BirdID_: Encodes unique ID of bird; anonymised from original data (factor)
 	- _TripID_: Encodes identity of trip for individual birds (factor)
 	- _Sex_: Encodes whether bird is male (M) or female (F) (factor)
@@ -54,7 +54,7 @@ These datasets are used in the above scripts. The first dataset, 'WAAL_2013_gps_
 	- _BirdID_: Encodes unique ID of bird; anonymised from original data (factor)
 - **WAAL_2013_gps_processed_aperture30.csv** This dataset is used for the main analyses, and contains rows for each segment (focal and non-focal) within decision points. There are 12 segments per decision point. The variables are as follows:
 	- _segment_ID_: Encodes whether the segment is focal (1) or non-focal (0) (numeric)
-	- _segment_n: Number of segment, containing clockwise from focal (1) (numeric)
+	- _segment_n_: Number of segment, containing clockwise from focal (1) (numeric)
 	- _abs_SPL_2000dB_: Sound pressure level integrated across the individual segment to a radius of 2000km, dB (numeric)
 	- _abs_SPL_2000dB_: Sound pressure level, standardised within the decision point (numeric)
 	- _birdID_: Encodes unique ID of bird; anonymised from original data (factor)
