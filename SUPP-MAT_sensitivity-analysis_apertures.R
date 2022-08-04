@@ -17,7 +17,7 @@
 
 ### 0.0 Load packages ----------------------------------------------------------
 
-# 0.0.0 Specify the packages
+## 0.0.0 Specify the packages
 packages <- c("dplyr", "ncdf4", "lubridate", "birk", "ggplot2", "survival", "ggpubr")
 
 # Install packages not yet installed - change lib to library path
@@ -34,18 +34,18 @@ invisible(lapply(packages, library, character.only = TRUE))
 deg2rad <- function(deg) {(deg * pi) / (180)}
 
 
-### 1.0 Load the data ----------------------------------------------------------
+### 1.0 Process the GPS data for segmentation ----------------------------------
 
-# 1.0.1 Load the GPS data
+## 1.0.0 Load the GPS data
 gps_2013Trav20 <- read.csv('Data_inputs/WAAL_2013_gps_Trav20.csv', stringsAsFactors = F)
 
-# 1.0.2 Isolate first point of bout
+# 1.0.1 Isolate first point of bout
 gps_2013Trav20_1stpoint <- gps_2013Trav20 %>% 
-                           group_by(ID, travbout) %>%
+                           group_by(BirdID, travbout) %>%
                            slice_head(n = 1) %>% 
                            ungroup()
 
-# 1.0.2 Point to soundscape data 
+# 1.0.1 Point to soundscape data 
 path_to_IS_maps <- "E:/Soundscapes/"
 IS_folder_maps <- dir(path_to_IS_maps, pattern = "2013")
 GPS_ID_segments <- list()
@@ -56,11 +56,13 @@ GPS_ID_segments <- list()
 apertures <- c(15, 30, 60, 90)
 transectlength <- 2025
 
-for (a in 1:length(apertures)) {
+for (j in 1:length(apertures)) {
   
   # 2.0.1 Set the segment-specific parameters
-  segmentaperture <- apertures[a]
+  segmentaperture <- apertures[j]
   segmentno <- 360/segmentaperture
+  angDiffs <-  c(seq(0, 180, by = segmentaperture),
+                 seq((-180 + segmentaperture),-segmentaperture, segmentaperture))
   
   print(segmentaperture)
   
@@ -76,7 +78,7 @@ for (a in 1:length(apertures)) {
     # 2.1.1 Load IS files 
     IS_files <- list.files(path = path_to_IS_files)
     
-    # 2.1.2 Extract bird ID
+    # 2.1.2 Extract bird ID from the folder name
     IDbirdmap <- sapply(strsplit(IS_folder_maps[x], "_", fixed = TRUE),
                         function(i) paste(head(i, -1), collapse = "_"))
     
@@ -90,7 +92,7 @@ for (a in 1:length(apertures)) {
       filter(TripID == IDbirdmap)
     
     # If there are no GPS data for that map, skip
-    if(nrow(gps_2013_ID1) == 0) next
+    if (nrow(gps_2013_ID1) == 0) next
     
     # Check data formatting
     gps_2013_ID1$TripID <- as.factor(as.character(gps_2013_ID1$TripID))
@@ -102,12 +104,11 @@ for (a in 1:length(apertures)) {
       format(round(gps_2013_ID1$DateTime, units = "hours"), format = "%Y-%m-%d %H:%M")
     
     
-    ## 2.2 Find the maptobe for each GPS point in the IS_files -----------------
-    ## If no map is found then fill it with NAs. 
+## 2.2 Match each GPS fix to the closest SPL map in time and compute segments ----
     
-    for (i in 1:nrow(gps_2013_ID1) ){
+    for (i in 1:nrow(gps_2013_ID1)) {
       
-      # 2.2.0 Get the timepoint
+      # 2.2.0 Find the closest hour for each GPS point in the IS_files
       TG <- gps_2013_ID1$maptobe[i]
       Maptobe <-
         paste0(
@@ -123,9 +124,10 @@ for (a in 1:length(apertures)) {
       
       IDX <- which(IS_files == Maptobe)
       
+      # If no map is found then fill it with NAs.
       if (length(IDX) == 0) {
         
-        # 2.2.1 Fill empty map with NAs
+      # 2.2.1 Fill empty map with NAs
         segments = data.frame(
           segment_ID = as.numeric(NA),
           segment_n = as.numeric(NA),
@@ -146,6 +148,7 @@ for (a in 1:length(apertures)) {
           WindSp = as.numeric(NA), # wind speed
           Dev.wind2 = as.numeric(NA), # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
           relDir_adj.bearing = as.numeric(NA),
+          tw_sup = as.numeric(NA),
             stringsAsFactors = FALSE
         ) 
         
@@ -188,20 +191,20 @@ for (a in 1:length(apertures)) {
       X2$baz_converted <- ifelse(
         X2$baz <= 90 & X2$baz >= 0,
         X2$baz - 180,
-        ifelse (
+        ifelse(
           X2$baz > 90 & X2$baz <= 180,
           X2$baz - 180,
-          ifelse (
+          ifelse(
             X2$baz >= -180 & X2$baz <= -90,
             (X2$baz + 180),
-            ifelse (X2$baz > -90 &
+            ifelse(X2$baz > -90 &
                       X2$baz < 0, (X2$baz + 180), NA)
           )
         )
       )
         
-      ## 2.3 Within each soundscape map divide the area into 12 segments of 30 deg each  ----
-      ## Get the baz angles for the 12 segments starting from the left side of
+      ## 2.3 Within each soundscape map divide the area into segments depending on aperture size  ----
+      ## Get the baz angles for the segments starting from the left side of
       ## the focal segment, and then clockwise. 
       ## Always the same relative angles from the ontrack one! 
       
@@ -221,8 +224,8 @@ for (a in 1:length(apertures)) {
       }
         
         
-     # 2.3.2 Create the other segments from the focal segment   
-      if (focal_segment_deg[1]<= (-180 + segmentaperture)) {
+      # 2.3.2 Create the other segments from the focal segment   
+      if (focal_segment_deg[1] <= (-180 + segmentaperture)) {
         segment_vert_lef <-
           (seq(from = focal_segment_deg[1], to = 180, by = segmentaperture))
         segment_vert_rig <-
@@ -270,7 +273,7 @@ for (a in 1:length(apertures)) {
       
       ## 2.4 For each segment estimate the abs & standarized SPL and gdist to 45dB ----
         
-      # 2.4.0 AAdd new empty column to dataframe to be filled
+      # 2.4.0 Add new empty column to dataframe to be filled
       segments$abs_SPL_2000dB <- NA
       
       # 2.6. Loop through segments and calculate integrated SPL in each
@@ -318,23 +321,24 @@ for (a in 1:length(apertures)) {
       segments$Dev.wind2 = gps_2013_ID1$Dev.wind2[i] # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
       
         
-      ## 2.5 Find wind direction for each segment  -------------------------------
+      ## 2.5 Find wind direction for each segment  -----------------------------
         
-      segment_no <- 360 / segmentaperture
-      angDiffs <- c(seq(0, 180, by = segmentaperture),
-                    seq((-180 + segmentaperture),-segmentaperture, segmentaperture))
+      # 2.5.0 Find angular differences between each segment 
       segments$segment_vert_lef.DIFF <- rep(angDiffs, nrow(segments) / segmentno)
       
       # 2.5.1 Calculate relative wind direction adjusted for segment and convert to c(-180, 180)
       segments$relDir_adj <- segments$Dev.wind2 + segments$segment_vert_lef.DIFF
       segments$relDir_adj.bearing <-  abs(ifelse(segments$relDir_adj > 180, -360 + segments$relDir_adj, 
-                                                segments$relDir_adj))
-        
-      # 2.5.2 Remove unnecessary columns
+                                                 segments$relDir_adj))
+      
+      # 2.5.2 Remove columns used for calculation
       segments$segment_vert_lef.DIFF <- NULL
       segments$relDir_adj <- NULL
       segments$relDir <- NULL
-       
+      
+      # 2.5.3 Calculate tailwind support
+      segments$tw_sup <- segments$WindSp * cos(deg2rad(segments$relDir_adj.bearing))
+    
       }
       
       if (x == 1 & i == 1) { GPS_ID_segments = segments
@@ -372,10 +376,9 @@ for (a in 1:length(apertures)) {
 
 
 
-
 ### 3.0 For each aperture, calculate mean SPL diff focal vs non-focal  ---------
 
-# 3.0.0 Define apertures and set list
+## 3.0.0 Define apertures and set list
 apertures <- c(15, 30, 60, 90)
 variance_output <- vector(mode = "list", length = length(apertures))
 model_output <- vector(mode = "list", length = length(apertures))
@@ -450,19 +453,28 @@ for (i in 1:length(apertures)) {
 # 4.0 Fit model to aperture data -----------------------------------------------
 
   # 4.0.0 Scale continuous variables
-  cont_vars <- c("WindSp", "relDir")
-  modDat[cont_vars] <- lapply(modDat[cont_vars], function(x) c(scale(x, center = TRUE, scale = TRUE)))
-  
+  cont_vars <- c("WindSp", "relDir", "abs_SPL_2000dB_std")
+  modDat[, cont_vars] <-
+    lapply(modDat[, cont_vars], function(x)
+      c(scale(x, center = TRUE, scale = TRUE)))
  
+  # 4.0.1 Separate males and females
+  modDat.F <- subset(modDat, Sex == "F")
+  modDat.F <- droplevels(modDat.F)
+  modDat.M <- subset(modDat, Sex == "M")
+  modDat.M <- droplevels(modDat.M)
+  
   ## 4.1 Set up the models -----------------------------------------------------
-  RSF_mod.F <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB:WindSp + relDir:WindSp +
-                        strata(pointID), cluster = birdID, 
-                      robust = TRUE, method = 'approximate',  data = modDat.F)
   
-  RSF_mod.M <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB:WindSp + relDir:WindSp +
-                        strata(pointID), cluster = birdID, 
-                      robust = TRUE, method = 'approximate',  data = modDat.M)
+  RSF_mod.F <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB_std:WindSp + relDir:WindSp +
+                      strata(pointID), cluster = birdID, 
+                    robust = TRUE, method = 'approximate', data = modDat.F)
   
+  RSF_mod.M <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB_std:WindSp + relDir:WindSp +
+                      strata(pointID), cluster = birdID, 
+                    robust = TRUE, method = 'approximate',  data = modDat.M)
+  
+
   ## 4.2 Get effect sizes  -----------------------------------------------------
   
   # 4.2.0 FEMALES
@@ -509,45 +521,52 @@ col_M <- "#E1BE6A" # yellow
 col_F <- "#40B0A6" # teal
 
 variance_plot <- ggplot(aes(x = aperture, y = abs_diff, group = sex, col = sex), data = variance_summary) +
-  geom_point() +
+  geom_point(size = 6) +
   geom_line() +
   ylim(0, 0.3) +
-  labs(y = "Difference in SPL (dB)", x = "Aperture size (degrees)", col = "Sex") +
+  labs(y = "Difference in SPL (dB)", x = "Aperture size (degrees)", tag = "(a)", col = "Sex") +
   scale_colour_manual(values = c(col_F, col_M)) +
   theme_bw() +
   theme(axis.text.x = element_text(size = 16),
         axis.text.y = element_text(size = 16),
         axis.title.x = element_text(size = 18),
         axis.title.y = element_text(size = 18),
-        legend.position = c(0.09, 0.92),
+        legend.position = c(0.092, 0.92),
         legend.box.background = element_blank(),
         legend.background = element_blank(),
         legend.key = element_blank(),
         legend.text = element_text(size = 14),
-        legend.title = element_text(size = 16))
+        legend.title = element_text(size = 16),
+        plot.tag = element_text(size = 22))
 
 
 ## 6.2 Make an effect size plot ------------------------------------------------
 
 effects_plot <- ggplot(aes(x = aperture, y = coefs, group = cov, col = cov), data = plotDat) + 
-  geom_point() + geom_line() +
+  geom_point(aes(shape = cov), size = 5) + geom_line() +
   geom_hline(yintercept = 1, lty = "dashed") +
   facet_grid(.~sex) + 
-  labs(y = "Effect size", x = "Aperture size (degrees)", col = "Covariates") +
-  scale_colour_viridis_d(labels = c("SPL","SPL:windDir","SPL:windSp", "windDir", "windDir:windSp")) +
+  labs(y = "Odds ratio", x = "Aperture size (degrees)", tag = "(b)") +
+  scale_colour_viridis_d(name = "Covariates", 
+                         labels = c("SPL","SPL:windDir", "SPL:windSp","windDir", "windDir:windSp")) +
+  scale_shape_manual(name = "Covariates", 
+                     labels = c("SPL","SPL:windDir", "SPL:windSp","windDir", "windDir:windSp"),
+                     values = c(15, 16, 17, 18, 19)) +
   theme_bw() +
   theme(axis.text.x = element_text(size = 16),
         axis.text.y = element_text(size = 16),
         axis.title.x = element_text(size = 18),
         axis.title.y = element_text(size = 18),
-        legend.position = c(0.15,0.85),
+        legend.position = c(0.15,0.9),
         legend.box.background = element_blank(),
         legend.background = element_blank(),
         legend.key = element_blank(),
         legend.text = element_text(size = 14),
-        legend.title = element_text(size = 16))
+        legend.title = element_text(size = 16),
+        plot.tag = element_text(size = 22))
+
 
 #### FIGURE S3 - Plot of sensitivity analysis ----------------------------------
-png(filename = "Figures/FIGS3_sensitivity-aperture-coefs.png", width = 15, height = 7, units = "in", res = 600)
+png(filename = "Figures/FIGS3_sensitivity-aperture-coefs.png", width = 15, height = 10, units = "in", res = 600)
 ggarrange(variance_plot, effects_plot, ncol = 2, widths = c(0.8, 1))
 dev.off()

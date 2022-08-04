@@ -15,7 +15,7 @@
 
 ### 0.0 Load the packages ------------------------------------------------------
 
-## 0.0.0 Define the packages
+# 0.0.0 Define the packages
 packages <- c("dplyr", "ncdf4", "lubridate", "birk", "pracma")
 
 # Install packages not yet installed - change lib to library path
@@ -30,37 +30,37 @@ invisible(lapply(packages, library, character.only = TRUE))
 
 source("FUNCTION_boutFinder.R")
 
-### 0.1 Load the data ----------------------------------------------------------
+## 0.1 Load the data -----------------------------------------------------------
 
 gps_2013 <- read.csv("Data_inputs/WAAL_2013_gps_labelled.csv", stringsAsFactors = F)
 
 ### 1.0 Create travel bouts ----------------------------------------------------
 
-## 1.1 Label the travel bouts --------------------------------------------------
-
-# 1.1.1 Index all rows in each trip for each bird
+# 1.0.0 Index all rows in each trip for each bird
 gps_2013Trav <- gps_2013 %>% 
             group_by(TripID) %>%
             mutate(idx = seq(1:n())) %>%
-# 1.1.2 Filter fixes labelled as 'travel'
+# 1.0.1 Filter fixes labelled as 'travel'
             filter(State == "Travel") %>% 
-# 1.1.3 Label individual bouts
+# 1.0.2 Label individual bouts
             mutate(travbout = boutFinder(idx)) %>% 
             data.frame()
 
 gps_2013Trav$travbout <- as.factor(as.character(gps_2013Trav$travbout))
             
-## 1.2 Estimate distance travelled in each bout & filter for travel bouts > 20km ----------------------------------
+
+## 1.2 Estimate distance travelled in each bout & filter for travel bouts > 20km ----
 gps_2013Trav20 <- gps_2013Trav %>%
           group_by(TripID, travbout) %>%
           mutate(TotdisttravBout = sum(DistTrav)) %>%
           filter(TotdisttravBout > 20) %>%
           data.frame()
 
-# Output dataframe - used for sensitivity analysis
+# 1.2.0 Output dataframe - used for sensitivity analysis
 write.csv(gps_2013Trav20, "Data_inputs/WAAL_2013_gps_Trav20.csv", row.names = F)
 
-## 1.3 Identify the first point of each travelling period (decision point) -----------------------------------
+
+## 1.3 Identify the first point of each travelling period (decision point) -----
 gps_2013Trav20_1stpoint <- gps_2013Trav20 %>%
                            group_by(TripID, travbout) %>%
                            slice_head(n = 1) %>%
@@ -69,7 +69,7 @@ gps_2013Trav20_1stpoint <- gps_2013Trav20 %>%
 
 ### 2.0 Match each travel bout to SPL map --------------------------------------
 
-#### NOTE: This script may take several hours to run depending on computer power.
+#### NOTE: This script may take several hours to run depending on computing power.
 
 ## 2.1 Point to soundscape data ------------------------------------------------
 path_to_IS_maps <- "E:/Soundscapes/"
@@ -77,7 +77,7 @@ IS_folder_maps <- dir(path_to_IS_maps, pattern = "2013")
 GPS_ID_segments <- list()
 
 ## 2.2 Define segment parameters -----------------------------------------------
-aperture <- 30
+aperture <- 60
 transectlength <- 2025
 segmentno <- 360/aperture
 angDiffs <-  c(seq(0, 180, by = aperture),
@@ -118,7 +118,7 @@ for (x in 1:length(IS_folder_maps)) {
   gps_2013_ID1$maptobe <-
     format(round(gps_2013_ID1$DateTime, units = "hours"), format = "%Y-%m-%d %H:%M")   
   
-  ## 2.4 Match each GPS fix to the closest SPL map in time and compute segments -----------------------------------
+  ## 2.4 Match each GPS fix to the closest SPL map in time and compute segments ----
   
   for (i in 1:nrow(gps_2013_ID1)) {
       
@@ -160,6 +160,7 @@ for (x in 1:length(IS_folder_maps)) {
         WindSp = as.numeric(NA), # wind speed
         Dev.wind2 = as.numeric(NA), # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
         relDir_adj.bearing = as.numeric(NA),
+        tw_sup = as.numeric(NA),
         stringsAsFactors = FALSE
       ) 
         
@@ -203,25 +204,25 @@ for (x in 1:length(IS_folder_maps)) {
     X2$baz_converted <- ifelse(
       X2$baz <= 90 & X2$baz >= 0,
       X2$baz - 180,
-      ifelse (
+      ifelse(
         X2$baz > 90 & X2$baz <= 180,
         X2$baz - 180,
-        ifelse (
+        ifelse(
           X2$baz >= -180 & X2$baz <= -90,
           (X2$baz + 180),
-          ifelse (X2$baz > -90 &
+          ifelse(X2$baz > -90 &
                     X2$baz < 0, (X2$baz + 180), NA)
         )
       )
     )
     
         
-    ## 2.5 Within each soundscape map divide the area into 12 segments of 30 deg each  -----------------------------------
+    ## 2.5 Within each soundscape map divide the area into 6 segments of 60 deg each  ----
     ## Get the baz angles for the 12 segments starting from the left side of
     ## the focal segment, and then clockwise. 
     ## Always the same relative angles from the ontrack one! 
     
-    # 2.5.1 Set the focal segment as +/- 15 degrees from bird's bearing
+    # 2.5.1 Set the focal segment as +/- 30 degrees from bird's bearing
     focal_segment_deg <-
       c( round(gps_2013_ID1$Bearing[i]) - aperture / 2,
         round(gps_2013_ID1$Bearing[i]) + aperture / 2 )
@@ -282,12 +283,12 @@ for (x in 1:length(IS_folder_maps)) {
                                     segment_vert_rig)) # right bound
 
         
-    ## 2.6 For each segment estimate the abs & standarized SPL and gdist to 45dB -----------------------------------
+    ## 2.6 For each segment estimate the abs & standarized SPL and gdist to 45dB ----
 
     # 2.6.0 Add new empty column to dataframe to be filled
     segments$abs_SPL_2000dB <- NA
    
-    # 2.6. Loop through segments and calculate integrated SPL in each
+    # 2.6.1 Loop through segments and calculate integrated SPL in each
     for (c in 1:nrow(segments)) {
           
       if (segment_vert_lef[c] > 0 & segment_vert_rig[c] < 0) {
@@ -345,6 +346,9 @@ for (x in 1:length(IS_folder_maps)) {
     segments$segment_vert_lef.DIFF <- NULL
     segments$relDir_adj <- NULL
     segments$relDir <- NULL
+    
+    # 2.7.4 Calculate tailwind support
+    segments$tw_sup <- segments$WindSp * cos(deg2rad(segments$relDir_adj.bearing))
         
       }
       
@@ -361,22 +365,20 @@ for (x in 1:length(IS_folder_maps)) {
 }
 
   
-### 3.0 Process and output segment dataframe  ----------------------------------- 
+### 3.0 Process and output segment dataframe  ----------------------------------
 
-# 3.0.0 Tidy dataframe
-
-# Remove NA variables
+# 3.0.0 Remove NA variables
 GPS_ID_segments <- subset(GPS_ID_segments, !is.na(segment_ID))
-# Rename relDir columns 
+# 3.0.1 Rename relDir columns 
 GPS_ID_segments <- rename(GPS_ID_segments, relDir = relDir_adj.bearing)
-# Make (decision) Point ID variable
+# 3.0.2 Make (decision) Point ID variable
 GPS_ID_segments$pointID <- paste(GPS_ID_segments$TripID, GPS_ID_segments$counter, sep = ".")
-# Make focal segment '1' and non-focal '0'
+# 3.0.3 Make focal segment '1' and non-focal '0'
 GPS_ID_segments$segment_ID <- abs(GPS_ID_segments$segment_ID - 1)
-# Remove columns not relevant for analysis
+# 3.0.4 Remove columns not relevant for analysis
 cols_rm <- c("segment_vert_lef", "segment_vert_rig", "mapID", "counter", "Dev.wind2")
 GPS_ID_segments[,cols_rm] <- NULL
 
-# 3.0.2 Write to csv
+## 3.1 Write to csv ------------------------------------------------------------
 write.csv(GPS_ID_segments, paste0("./Data_inputs/WAAL_2013_gps_processed_aperture", aperture, "deg.csv"), row.names = F)
   

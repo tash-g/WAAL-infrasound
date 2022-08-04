@@ -46,8 +46,8 @@ if (dir.exists(out.path) == FALSE) {
 gps_2013 <- read.csv("Data_inputs/WAAL_2013_gps_filtered.csv", stringsAsFactors = F)
 
 # 0.2.1 Make ID a factor
-gps_2013$BirdId <- as.factor(gps_2013$BirdId)
-length(unique(gps_2013$BirdId)) # 89 Trips for 89 Individuals
+gps_2013$BirdId <- as.factor(gps_2013$BirdID)
+length(unique(gps_2013$BirdID)) # 89 Trips for 89 Individuals
 
 
 ### 1.0 Fit an HMM to the data -------------------------------------------------
@@ -68,7 +68,7 @@ head(hmm_data)
 hmm_data <- hmm_data %>%
             filter(!step > 25) 
 
-# Remove NA angles
+# Remove NA angles (141 fixes)
 hmm_data <- hmm_data %>%
             filter(!is.na(angle))
 

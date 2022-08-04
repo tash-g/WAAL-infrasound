@@ -14,9 +14,10 @@
 ## ---------------------------
 
 
-### 0.0 Load the packages --------------------------------------------------------
+### 0.0 Load the packages ------------------------------------------------------
 
-packages <- c("raster", "rgdal", "rnaturalearth", "rnaturalearthdata", "ggplot2", "ggspatial")
+packages <- c("raster", "rgdal", "rnaturalearth", "rnaturalearthdata", "ggplot2", 
+              "ggspatial", "ggpubr")
 
 # Install packages not yet installed - change lib to library path
 #installed_packages <- packages %in% rownames(installed.packages())
@@ -29,7 +30,7 @@ packages <- c("raster", "rgdal", "rnaturalearth", "rnaturalearthdata", "ggplot2"
 invisible(lapply(packages, library, character.only = TRUE))
 
 
-## 0.1 Load data and set map projections --------------------------------------
+## 0.1 Load data and set map projections ---------------------------------------
 
 # 0.1.0 Load the HMM-labelled GPS dataset
 gpsDat <- read.csv("Data_inputs/WAAL_2013_gps_labelled.csv")
@@ -62,13 +63,14 @@ gpsDat.df2 <- as.data.frame(gpsDat.sp2)
 
 ### 1.0 Make the plot ----------------------------------------------------------
 
-# 1.0.1 Download the world map
+# 1.0.0 Download the world map
 world <- ne_countries(scale = "medium", returnclass = "sf")
 world2 <- sf::st_transform(world, crs = proj.utm)
 
-# 1.0.2 Set male/female colours
+# 1.0.1 Set male/female colours
 col_M <- "#E1BE6A" # yellow
 col_F <- "#40B0A6" # teal
+
 
 #### FIGURE S1 - Map of all GPS fixes ------------------------------------------
 png("Figures/FIGS1_gps-map.png", width = 7, height = 7, units = "in", res = 350)
@@ -98,5 +100,87 @@ ggplot(data = world2) +
 dev.off()
 
 
+### 2.0 Separation of trip stage -----------------------------------------------
+
+# 2.0.0 Calculate proportion fixes in each stage (out, mid, in)
+
+# Females
+nrow(subset(gpsDat.df, Sex == "F" & Trip_state == "out"))/
+  nrow(subset(gpsDat.df, Sex == "F"))
+#0.3259994
+nrow(subset(gpsDat.df, Sex == "F" & Trip_state == "mid"))/
+  nrow(subset(gpsDat.df, Sex == "F"))
+#0.3673602
+nrow(subset(gpsDat.df, Sex == "F" & Trip_state == "in"))/
+  nrow(subset(gpsDat.df, Sex == "F"))
+#0.3066404
+
+# Males
+nrow(subset(gpsDat.df, Sex == "M" & Trip_state == "out"))/
+  nrow(subset(gpsDat.df, Sex == "M"))
+#0.3259914
+nrow(subset(gpsDat.df, Sex == "M" & Trip_state == "mid"))/
+  nrow(subset(gpsDat.df, Sex == "M"))
+#0.3673602
+nrow(subset(gpsDat.df, Sex == "M" & Trip_state == "in"))/
+  nrow(subset(gpsDat.df, Sex == "M"))
+
+####  FIGURE S2 - Two examplar looping tracks ----------------------------------
+
+### Bird 1 - 201352 - Male
+bird1_plot <- ggplot(data = world2) + 
+  geom_sf(fill = "cadetblue", colour = "grey") +
+  ggspatial::annotation_scale(location = "bl", width_hint = 0.25, style = "bar") +
+  coord_sf(crs = proj.utm, xlim = c(-3100000, 3200000), ylim = c(-2500000,2500000),
+           label_axes = list(top = "E", left = "N", bottom = "E", right = "N")) +
+  geom_path(aes(x = x_lon, y = y_lat), size = 1, dat = subset(gpsDat.df, BirdID == "201352")) + 
+  labs(tag = "(a)") +
+  theme(panel.background = element_rect(fill = "white"), 
+        panel.grid.major = element_line(colour = "grey80"),
+        panel.border = element_rect(colour = "black", fill = NA),
+        axis.text.x.bottom = element_blank(), 
+        axis.title.x.bottom = element_blank(),
+        axis.text.y.right = element_blank(), 
+        axis.title.y.right = element_blank(),
+        axis.title.y.left = element_blank(),
+        legend.position = c(0.93,0.9),
+        legend.box.background = element_blank(),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18),
+        plot.tag = element_text(size = 22)) +
+  annotate("point", shape = 17, (colony.df$Lon + 100), colony.df$Lat) +
+  annotate("text", label = "Crozet", colony.df$Lon, (colony.df$Lat + 145000))
 
 
+### Bird 2 - 201355 - Female
+bird2_plot <- ggplot(data = world2) + 
+  geom_sf(fill = "cadetblue", colour = "grey") +
+  ggspatial::annotation_scale(location = "bl", width_hint = 0.25, style = "bar") +
+  coord_sf(crs = proj.utm, xlim = c(-3100000, 3200000), ylim = c(-2500000,2500000),
+           label_axes = list(top = "E", left = "N", bottom = "E", right = "N")) +
+  geom_path(aes(x = x_lon, y = y_lat), size = 1, dat = subset(gpsDat.df, BirdID == "201355")) + 
+  labs(tag = "(b)") +
+  theme(panel.background = element_rect(fill = "white"), 
+        panel.grid.major = element_line(colour = "grey80"),
+        panel.border = element_rect(colour = "black", fill = NA),
+        axis.text.x.bottom = element_blank(), 
+        axis.title.x.bottom = element_blank(),
+        axis.title.y.right = element_blank(),
+        axis.title.y.left = element_blank(),
+        axis.text.y.left = element_blank(),
+        legend.position = c(0.93,0.9),
+        legend.box.background = element_blank(),
+        legend.background = element_blank(),
+        legend.key = element_blank(),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18),
+        plot.tag = element_text(size = 22)) +
+  annotate("point", shape = 17, (colony.df$Lon + 100), colony.df$Lat) +
+  annotate("text", label = "Crozet", colony.df$Lon, (colony.df$Lat - 115000))
+
+### Output the plot
+png("Figures/FIGS2_examplar_loop_maps.png", width = 15, height = 7, units = "in", res = 350)
+ggarrange(bird1_plot, bird2_plot, ncol = 2, nrow = 1)
+dev.off()
