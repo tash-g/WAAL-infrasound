@@ -16,6 +16,7 @@ A short description of each script is given below.
 - **SUPP-MAT_gps-plot.R** This script contains the code to produce Figure S1, which shows a plot of all GPS tracks in the study, coloured by sex. It uses the dataset _'WAAL_2013_gps_labelled.csv'_, which is produced in script 1.
 - **SUPP-MAT_HMM-manual_validation.R** This script contains the code to compare the behaviour outputs of the HMM to manual classification and assess accuracy.
 - **SUPP_MAT_senstivity-analysis_apertures.R** This script contains the code to compare different aperture sizes for the segments. It first re-runs the processing in script 2 and outputs dataframes where aperture size has been varied. The best-fitting conditional logit models are then fitted to these datasets, and the effect sizes and directions of the output compared between the different aperture sizes. 
+- **SUPP_MAT_summary-stats.R** This script contains code to summarise metrics from the foraging trips, such as maximum distance from colony, total distance covered, and trip duration. 
 
 ## Data inputs 
 These datasets are used in the above scripts. The first dataset, 'WAAL_2013_gps_filtered' is processed using scripts 1 and 2 to produce the remaining datasets, but ready-made versions of these are provided for quick replication. Note that individual IDs have been recoded and so cannot be linked to existing datasets. Please contact the authors if you would like to make sure of these, as we may be able to offer addiitonal information, data, or advice. 
@@ -52,7 +53,7 @@ These datasets are used in the above scripts. The first dataset, 'WAAL_2013_gps_
 	- _DateTime_: Date and time of fix to nearest second (POSIXct)
 	- _state_manual_: Manual label indicating probable behavioural state of GPS fix, either 'Travel', 'Search', or 'Rest' (factor)
 	- _BirdID_: Encodes unique ID of bird; anonymised from original data (factor)
-- **WAAL_2013_gps_processed_aperture30.csv** This dataset is used for the main analyses, and contains rows for each segment (focal and non-focal) within decision points. There are 12 segments per decision point. The variables are as follows:
+- **WAAL_2013_gps_processed_aperture60.csv** This dataset is used for the main analyses, and contains rows for each segment (focal and non-focal) within decision points. There are 12 segments per decision point. The variables are as follows:
 	- _segment_ID_: Encodes whether the segment is focal (1) or non-focal (0) (numeric)
 	- _segment_n_: Number of segment, containing clockwise from focal (1) (numeric)
 	- _abs_SPL_2000dB_: Sound pressure level integrated across the individual segment to a radius of 2000km, dB (numeric)

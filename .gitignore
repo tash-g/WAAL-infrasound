@@ -4,6 +4,10 @@
 .Ruserdata
 APPENDIX_anonymise-data.R
 APPENDIX_SPL_randomisation.R
+Data_inputs/WAAL_2013_GPS_segmentAperture_15deg.csv
+Data_inputs/WAAL_2013_GPS_segmentAperture_30deg.csv
+Data_inputs/WAAL_2013_GPS_segmentAperture_60deg.csv
+Data_inputs/WAAL_2013_GPS_segmentAperture_90deg.csv
 /Figures
 /Workshop
 /Data_outputs
