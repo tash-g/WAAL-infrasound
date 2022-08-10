@@ -100,31 +100,6 @@ ggplot(data = world2) +
 dev.off()
 
 
-### 2.0 Separation of trip stage -----------------------------------------------
-
-# 2.0.0 Calculate proportion fixes in each stage (out, mid, in)
-
-# Females
-nrow(subset(gpsDat.df, Sex == "F" & Trip_state == "out"))/
-  nrow(subset(gpsDat.df, Sex == "F"))
-#0.3259994
-nrow(subset(gpsDat.df, Sex == "F" & Trip_state == "mid"))/
-  nrow(subset(gpsDat.df, Sex == "F"))
-#0.3673602
-nrow(subset(gpsDat.df, Sex == "F" & Trip_state == "in"))/
-  nrow(subset(gpsDat.df, Sex == "F"))
-#0.3066404
-
-# Males
-nrow(subset(gpsDat.df, Sex == "M" & Trip_state == "out"))/
-  nrow(subset(gpsDat.df, Sex == "M"))
-#0.3259914
-nrow(subset(gpsDat.df, Sex == "M" & Trip_state == "mid"))/
-  nrow(subset(gpsDat.df, Sex == "M"))
-#0.3673602
-nrow(subset(gpsDat.df, Sex == "M" & Trip_state == "in"))/
-  nrow(subset(gpsDat.df, Sex == "M"))
-
 ####  FIGURE S2 - Two examplar looping tracks ----------------------------------
 
 ### Bird 1 - 201352 - Male

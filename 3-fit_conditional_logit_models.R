@@ -53,7 +53,7 @@ modDat <- data.table::fread("Data_inputs/WAAL_2013_gps_processed_aperture60deg.c
 # 0.2.1 Rename and process variables
 modDat <- rename(modDat, case = segment_ID)
 
-factor_vars <- c("TripID", "birdID", "Sex", "Trip_state", "pointID")
+factor_vars <- c("TripID", "birdID", "Sex", "pointID")
 modDat[factor_vars] <- lapply(modDat[factor_vars], factor)
 
 # 0.2.2 Retain original variables for scaling later
@@ -448,51 +448,4 @@ pred_F.wind <- ggdraw() +
 png(filename = "Figures/FIG3_predictions.png", width = 15, height = 15, units = "in", res = 700)
 ggarrange(pred_M.SPL, pred_F.SPL, pred_M.wind, pred_F.wind, ncol = 2, nrow = 2)
 dev.off()
-
-### 3.0 Supplementary materials ------------------------------------------------
-
-## 3.1 Build the trip models  --------------------------------------------------
-
-### wind + SPL + trip ###
-H_SPLTrip.F <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB_std:WindSp + relDir:WindSp +
-                        abs_SPL_2000dB_std:Trip_state + strata(pointID), cluster = birdID, 
-                      robust = TRUE, method = 'approximate', data = modDat.F)
-summary(H_SPLTrip.F) 
-
-H_SPLTrip.M <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB_std:WindSp + relDir:WindSp +
-                        abs_SPL_2000dB_std:Trip_state + strata(pointID), cluster = birdID, 
-                      robust = TRUE, method = 'approximate', data = modDat.M)
-summary(H_SPLTrip.M) 
-
-
-## 3.2 Compare models using QIC weights ----------------------------------------
-hab::QIC(H_wind.F, H_SPL.F, H_SPLTrip.F) 
-
-#                 QIC   QuasiLL     n nevent K     Trace  deltaQIC       weight
-#H_wind.F    6360.420 -3177.983 10746   1791 2  2.226734 29.069977 3.794478e-07
-#H_SPL.F     6333.872 -3161.075 10746   1791 5  5.860984  2.521366 2.208563e-01
-#H_SPLTrip.F 6331.350 -3155.656 10746   1791 7 10.018688  0.000000 7.791433e-01
-
-summary(H_SPLTrip.F)
-
-#                                    exp(coef) exp(-coef) lower .95 upper .95
-#abs_SPL_2000dB_std                  0.9138     1.0944    0.8178    1.0210
-#relDir                              0.8342     1.1987    0.7908    0.8800
-#abs_SPL_2000dB_std:relDir           0.8517     1.1741    0.7998    0.9069
-#abs_SPL_2000dB_std:WindSp           1.0442     0.9576    0.9838    1.1084
-#relDir:WindSp                       0.9391     1.0648    0.8951    0.9854
-#abs_SPL_2000dB_std:Trip_statemid    1.1841     0.8445    1.0416    1.3462
-#abs_SPL_2000dB_std:Trip_stateout    1.1955     0.8365    1.0091    1.4163
-
-hab::QIC(H_wind.M, H_SPL.M, H_SPLTrip.M) 
-
-#                 QIC   QuasiLL    n nevent K     Trace  deltaQIC       weight
-#H_wind.M    4770.176 -2383.153 8010   1335 2  1.934830 50.354150 1.109460e-11
-#H_SPL.M     4719.822 -2351.242 8010   1335 5  8.669667  0.000000 9.536219e-01
-#H_SPLTrip.M 4725.869 -2349.672 8010   1335 7 13.262677  6.046879 4.637812e-02
-
-summary(H_SPL.M)
-
-# 3.2.1 Get mean SPL for each trip stage for males
-tapply(modDat.F$abs_SPL_2000dB_std, modDat.F$Trip_state, function(x) c(mean(x), sd(x))) 
 

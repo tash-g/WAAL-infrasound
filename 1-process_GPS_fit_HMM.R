@@ -16,7 +16,7 @@
 ### 0.0 Load the packages ------------------------------------------------------
 
 # 0.0.0 Define the packages
-packages <- c("dplyr", "momentuHMM", "ggplot2", "plotly", "ggpubr")
+packages <- c("dplyr", "momentuHMM", "ggplot2", "plotly", "ggpubr", "magrittr")
 
 # Install packages not yet installed - change lib to library path
 #installed_packages <- packages %in% rownames(installed.packages())
@@ -46,8 +46,9 @@ if (dir.exists(out.path) == FALSE) {
 gps_2013 <- read.csv("Data_inputs/WAAL_2013_gps_filtered.csv", stringsAsFactors = F)
 
 # 0.2.1 Make ID a factor
-gps_2013$BirdId <- as.factor(gps_2013$BirdID)
+gps_2013$BirdID <- as.factor(gps_2013$BirdID)
 length(unique(gps_2013$BirdID)) # 89 Trips for 89 Individuals
+
 
 
 ### 1.0 Fit an HMM to the data -------------------------------------------------
@@ -72,7 +73,7 @@ hmm_data <- hmm_data %>%
 hmm_data <- hmm_data %>%
             filter(!is.na(angle))
 
-### NOTE: Initial values taken from Clay et al. 2020
+### NOTE: Initial values taken from Clay et al. 2020, J. Anim. Ecol.
 
 # 1.1.1 Assign step lengths 
 shape_0 <- c(12.46, 3.95, 0.34)
@@ -119,6 +120,7 @@ file.out <- paste0("Data_outputs/WAAL_2013_HMM.RData")
 #load(file.out)
 
 
+
 ### 2.0 Assign behavioural states  ---------------------------------------------
 
 ## 2.1 Compute most probable states using viterbi algorithm---------------------
@@ -156,134 +158,30 @@ hmm_data_out %>%
 #3 Travel  32727  38.4
 
 
-### 3.0 Identify trip stage ----------------------------------------------------
-
-#### Identify whether bird at outbound, middle, or inbound part of trip
-
-## 3.1 Calculate trip metrics --------------------------------------------------
-
-hmm_data_out$ID <- as.factor(as.character(hmm_data_out$ID))
-
-hmm_data_out <- hmm_data_out %>%
-                group_by(ID) %>%
-  # 3.1.0 Cumulative distance since leaving colony
-                mutate(cum_trav_dist = cumsum(DistTrav),
-  # 3.1.1 Percentage distance covered
-                       per_trav_dist = cum_trav_dist*100/max(cum_trav_dist),
-  # 3.1.2 Index each fix within a trip 
-                       counter = row_number(ID),
-  # 3.1.3 Total trip time in minutes
-                       Trip_time =  counter * 15 / max(counter * 15)) %>%
-                data.frame()
-  
-#### Determining trip stage (outbound, middle, inbound) based on methods by 
-#### Wakefield et al. 2009: performed at population level rather than individual.
-
-## 3.2. Calculate distance from the colony as the proportion of the max distance ----
-## reached during that trip (dcol/dmax) and the time elapsed as a proportion 
-## of the total trip time (t/tmax)
-
-hmm_data_out <- hmm_data_out %>%
-                group_by(ID) %>%
-                mutate(dcol_dmax = Dist_cro_shelf/max(Dist_cro_shelf))
-
-
-## 3.3. The total variance in dcol/dmax for all locations occurring before t/tmax ----
-## is then plotted against t/tmax. The rate of change dcol/dmax with t/tmax is a 
-## measure of the rate at which birds move relative to the colony. 
-## Hence, by graphically examining the variance of dcol/dmax with t/tmax we were
-## able to identify the value of t/tmax at which the birds typically ceased 
-## commuting rapidly away from the colony and that at which they began commuting 
-## rapidly back again. Locations lying between these two values were categorized 
-## as the middle stage, and the remainder as the outward or return stages, as 
-## appropriate.
-
-# 3.3.0 Plot distance from colony as proportion of maximum distance from colony
-FIGS2_A <- ggplot(data = hmm_data_out) +
-  geom_point(aes(y = dcol_dmax, x = Trip_time), size = 0.1) +
-  labs(y = bquote(~italic(d)[col]~"/"~italic(d)[max]), 
-       x = bquote(~italic(t)~"/"~italic(t)[max]),
-       tag = "(a)") +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 16), 
-        axis.text.y = element_text(size = 16), 
-        axis.title.x = element_text(size = 18),
-        axis.title.y = element_text(size = 18),
-        plot.tag = element_text(size = 22)) 
-
-
-# 3.3.1 Calculate variance in dcol/dmax for all locations occuring before t/tmax
-# (var_asc) and after t/tmax (var_desc)
-var_asc <- c()
-var_desc <- c()
-
-for (i in 1:length(seq(0, 1, length.out = 50))) {
-  var_asc[i] <-
-    hmm_data_out %>% ungroup() %>% filter(Trip_time < seq(0, 1, length.out = 50)[i]) %>%
-    summarise(variance_dist = var(dcol_dmax))
-  
-  var_desc[i] <-
-    hmm_data_out %>% ungroup() %>% filter(Trip_time > seq(0, 1, length.out =
-                                                            50)[i]) %>%
-    summarise(variance_dist = var(dcol_dmax))
-  
-}
-
-var_asc <- unlist(var_asc)
-var_desc <- unlist(var_desc)
-idx <- seq(0, 1, length.out = 50)
-
-# 3.3.2 Plot variance in d/dmax before and after t/tmax
-FIGS2_B <- ggplot() +
-  geom_point(aes(y = var_asc, x = idx)) +
-  geom_point(aes(y = var_desc, x = idx, color = "red")) +
-  geom_vline(xintercept = idx[17], linetype = "dashed") +
-  geom_vline(xintercept = idx[35],
-             linetype = "dashed",
-             color = "red") +
-  labs(y = bquote("Var ("~italic(d)[col]~"/"~italic(d)[max]~")"), 
-       x = bquote(~italic(t)~"/"~italic(t)[max]),
-       tag = "(b)") +
-  theme_bw() +
-  theme(axis.text.x = element_text(size = 16), 
-        axis.text.y = element_text(size = 16), 
-        axis.title.x = element_text(size = 18),
-        axis.title.y = element_text(size = 18),
-        plot.tag = element_text(size = 22),
-        legend.position = "none") 
-
-#### FIGURE S2 - Plot to estimate trip stage -----------------------------------
-
-png(filename = "Figures/FIGS2_trip_stage.png", width = 16, height = 7, units = "in", res = 900)
-ggarrange(FIGS2_A, FIGS2_B, ncol = 2)
-dev.off()
-
-# 3.4 Classify trips as out, middle, or in ------------------------------------ 
-hmm_data_out <- hmm_data_out %>%
-                    mutate(Trip_state = case_when(Trip_time < idx[17] ~ 'out',
-                                                  Trip_time > idx[17] &
-                                                  Trip_time < idx[35] ~ 'mid',
-                                                  Trip_time > idx[35] ~ 'in')) %>%
-               data.frame()
-
-
 
 ### 4.0 Output the data ---------------------------------------------------------------------
 
-# 4.0.0 Rename x and y columns
+# 4.0.0 Make a counter variable (used in processing in script 2)
+hmm_data_out$ID <- as.factor(as.character(hmm_data_out$ID))
+
+hmm_data_out %<>% group_by(ID) %>%
+  mutate(counter = row_number(ID)) %>%
+  data.frame()
+
+# 4.0.1 Rename x and y columns
 hmm_data_out <- rename(hmm_data_out, x_lon = x, y_lat = y)
 
-# 4.0.1 Remove columns not used in subsequent processing or analysis
-cols_rm <- c("ID", "step", "angle", "cum_trav_dist", "per_trav_dist", "Trip_time", "dcol_dmax")
-hmm_data_out[,c(cols_rm)] <- NULL
+# 4.0.2 Remove columns used for processing
+cols.rm <- c("ID", "step", "angle")
+hmm_data_out[,cols.rm] <- NULL
 
-# 4.0.2 Check encoding of variables
+# 4.0.3 Check encoding of variables
 hmm_data_out$BirdID <- as.factor(as.character(hmm_data_out$BirdID))
 hmm_data_out$TripID <- as.factor(as.character(hmm_data_out$TripID))
-factor_vars <- c("Sex", "State", "Trip_state")
+factor_vars <- c("Sex", "State")
 hmm_data_out[factor_vars] <- lapply(hmm_data_out[factor_vars], factor)
 hmm_data_out$DateTime <- as.POSIXct(hmm_data_out$DateTime, format = "%Y-%m-%d %H:%M:%S")
 
-# 4.0.3 Write the CSV
+# 4.0.4 Write the CSV
 write.csv(hmm_data_out, "Data_inputs/WAAL_2013_gps_labelled.csv", row.names = F)
 

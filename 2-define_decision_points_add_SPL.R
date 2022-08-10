@@ -28,11 +28,14 @@ packages <- c("dplyr", "ncdf4", "lubridate", "birk", "pracma")
 # 0.0.1 Load packages
 invisible(lapply(packages, library, character.only = TRUE))
 
+# 0.0.2 Load boutFinder custom function
 source("FUNCTION_boutFinder.R")
 
 ## 0.1 Load the data -----------------------------------------------------------
 
 gps_2013 <- read.csv("Data_inputs/WAAL_2013_gps_labelled.csv", stringsAsFactors = F)
+
+
 
 ### 1.0 Create travel bouts ----------------------------------------------------
 
@@ -156,12 +159,10 @@ for (x in 1:length(IS_folder_maps)) {
         y_lat = as.numeric(NA),
         State = as.character(NA),
         Dist_cro_shelf = as.numeric(NA),
-        Trip_state = as.character(NA),
         WindSp = as.numeric(NA), # wind speed
         Dev.wind2 = as.numeric(NA), # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
         relDir_adj.bearing = as.numeric(NA),
-        tw_sup = as.numeric(NA),
-        stringsAsFactors = FALSE
+         stringsAsFactors = FALSE
       ) 
         
         
@@ -328,7 +329,6 @@ for (x in 1:length(IS_folder_maps)) {
     segments$y_lat = gps_2013_ID1$y_lat[i]
     segments$State = gps_2013_ID1$State[i]
     segments$Dist_cro_shelf = gps_2013_ID1$Dist_cro_shelf[i]
-    segments$Trip_state = gps_2013_ID1$Trip_state[i]
     segments$WindSp = gps_2013_ID1$WindSp[i] # wind speed
     segments$Dev.wind2 = gps_2013_ID1$Dev.wind2[i] # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
    
@@ -347,11 +347,6 @@ for (x in 1:length(IS_folder_maps)) {
     segments$relDir_adj <- NULL
     segments$relDir <- NULL
     
-    # 2.7.4 Calculate tailwind support
-    segments$tw_sup <- segments$WindSp * cos(deg2rad(segments$relDir_adj.bearing))
-        
-      }
-      
     if (x == 1) {
       GPS_ID_segments = segments
     } else{
