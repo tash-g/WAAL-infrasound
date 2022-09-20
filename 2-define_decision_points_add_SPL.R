@@ -60,7 +60,7 @@ gps_2013Trav20 <- gps_2013Trav %>%
           data.frame()
 
 # 1.2.0 Output dataframe - used for sensitivity analysis
-write.csv(gps_2013Trav20, "Data_inputs/WAAL_2013_gps_Trav20.csv", row.names = F)
+#write.csv(gps_2013Trav20, "Data_inputs/WAAL_2013_gps_Trav20.csv", row.names = F)
 
 
 ## 1.3 Identify the first point of each travelling period (decision point) -----
@@ -149,6 +149,8 @@ for (x in 1:length(IS_folder_maps)) {
         segment_vert_lef = as.numeric(NA),
         segment_vert_rig = as.numeric(NA),
         abs_SPL_2000dB = as.numeric(NA),
+        abs_SPL_2000 = as.numeric(NA),
+        abs_SPL_2000_std = as.numeric(NA),
         abs_SPL_2000dB_std = as.numeric(NA),
         birdID = as.character(birdmapid),
         TripID = as.character(NA),
@@ -162,7 +164,7 @@ for (x in 1:length(IS_folder_maps)) {
         WindSp = as.numeric(NA), # wind speed
         Dev.wind2 = as.numeric(NA), # wind direction relative to track direction with directionality removed i.e. 0 to 180 rather than -180 to 180)
         relDir_adj.bearing = as.numeric(NA),
-         stringsAsFactors = FALSE
+        stringsAsFactors = FALSE
       ) 
         
         
@@ -288,6 +290,7 @@ for (x in 1:length(IS_folder_maps)) {
 
     # 2.6.0 Add new empty column to dataframe to be filled
     segments$abs_SPL_2000dB <- NA
+    segments$abs_SPL_2000 <- NA
    
     # 2.6.1 Loop through segments and calculate integrated SPL in each
     for (c in 1:nrow(segments)) {
@@ -302,23 +305,38 @@ for (x in 1:length(IS_folder_maps)) {
        
         newX <- rbind(X2_1, X2_2)
         
+        abs_SPL_2000 <- newX %>%
+          filter(Gdist <= transectlength) %>%
+          summarise(x = sum(SPL_Pa))
+        
+        segments$abs_SPL_2000[c] <- as.numeric(abs_SPL_2000)
+        
         abs_SPL_2000dB <- newX %>%
           filter(Gdist <= transectlength) %>%
           summarise(x = 10 * log10(sum(SPL_Pa) / (Pref ^ 2)))
+        
         segments$abs_SPL_2000dB[c] <- as.numeric(abs_SPL_2000dB)
         
       } else {
        
+        abs_SPL_2000<- X2 %>%
+          filter(X2$baz_converted >= segment_vert_lef[c]  & X2$baz_converted <= segment_vert_rig[c] & Gdist <= transectlength) %>%
+          summarise(x = sum(SPL_Pa))
+        
+        segments$abs_SPL_2000[c]<-as.numeric(abs_SPL_2000)
+        
         abs_SPL_2000dB <- X2 %>%
           filter( X2$baz_converted >= segment_vert_lef[c]  &
               X2$baz_converted <= segment_vert_rig[c] &
               Gdist <= transectlength ) %>%
           summarise(x = 10 * log10(sum(SPL_Pa) / (Pref ^ 2)))
+        
         segments$abs_SPL_2000dB[c] <- as.numeric(abs_SPL_2000dB)
         
           }
         }
         
+    segments$abs_SPL_2000_std <- scale(segments$abs_SPL_2000)
     segments$abs_SPL_2000dB_std <- scale(segments$abs_SPL_2000dB)
     segments$birdID <- birdmapid
     segments$TripID <- gps_2013_ID1$TripID[i]
@@ -346,6 +364,8 @@ for (x in 1:length(IS_folder_maps)) {
     segments$segment_vert_lef.DIFF <- NULL
     segments$relDir_adj <- NULL
     segments$relDir <- NULL
+    
+    }
     
     if (x == 1) {
       GPS_ID_segments = segments

@@ -50,19 +50,15 @@ out.path <- "./Figures/"
 modDat <- data.table::fread("Data_inputs/WAAL_2013_gps_processed_aperture60deg.csv", 
                             data.table = F)
 
+
 # 0.2.1 Rename and process variables
 modDat <- rename(modDat, case = segment_ID)
 
 factor_vars <- c("TripID", "birdID", "Sex", "pointID")
 modDat[factor_vars] <- lapply(modDat[factor_vars], factor)
 
-# 0.2.2 Retain original variables for scaling later
-modDat$abs_SPL_2000dB_std.OG <- modDat$abs_SPL_2000dB_std
-modDat$relDir.OG <- modDat$relDir
-modDat$WindSp.OG <- modDat$WindSp
-
-# 0.2.3 Remove NA variables
-modDat <- modDat[!is.na(modDat$abs_SPL_2000dB_std),]
+# 0.2.2 Remove NA variables
+modDat <- modDat[!is.na(modDat$abs_SPL_2000_std),]
 
 ## 0.3 Check data structure ----------------------------------------------------
 
@@ -82,7 +78,7 @@ table(tapply(modDat$birdID, modDat$pointID, function(x) length(unique(x))))
 modDat %>%
   subset(case == 1) %>%
   summarise(
-    SPL = sum(is.na(abs_SPL_2000dB)),
+    SPL = sum(is.na(abs_SPL_2000_std)),
     Sex = sum(is.na(Sex)),
     WindDir = sum(is.na(relDir)),
     WindSp = sum(is.na(WindSp))
@@ -94,17 +90,21 @@ modDat %>%
 #### NOTE: There is no variation in sex at the level of cluster, so fit male
 #### and females separately (to avoid blurring results)
 
-# 1.0.0 Scale continuous variables and remove NA variables
-vars_scale <- c("WindSp", "relDir", "abs_SPL_2000dB_std")
-modDat[, vars_scale] <-
-  lapply(modDat[, vars_scale], function(x)
-    c(scale(x, center = TRUE, scale = TRUE)))
-
-# 1.0.1 Separate males and females
+# 1.0.0 Separate males and females
 modDat.F <- subset(modDat, Sex == "F")
 modDat.F <- droplevels(modDat.F)
 modDat.M <- subset(modDat, Sex == "M")
 modDat.M <- droplevels(modDat.M)
+
+# 1.0.1 Scale continuous variables and remove NA variables
+vars_scale <- c("WindSp", "relDir")
+modDat.F[, vars_scale] <-
+  lapply(modDat.F[, vars_scale], function(x)
+    c(scale(x, center = TRUE, scale = TRUE)))
+
+modDat.M[, vars_scale] <-
+  lapply(modDat.M[, vars_scale], function(x)
+    c(scale(x, center = TRUE, scale = TRUE)))
 
 
 ## 1.1 Set up the models  ------------------------------------------------------
@@ -120,12 +120,12 @@ summary(H_wind.M)
 
 
 ### wind + SPL_model ###
-H_SPL.F <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB_std:WindSp + relDir:WindSp +
+H_SPL.F <- clogit(case ~ abs_SPL_2000_std*relDir + abs_SPL_2000_std:WindSp + relDir:WindSp +
                     strata(pointID), cluster = birdID, 
                    robust = TRUE, method = 'approximate', data = modDat.F)
 summary(H_SPL.F) 
 
-H_SPL.M <- clogit(case ~ abs_SPL_2000dB_std*relDir + abs_SPL_2000dB_std:WindSp + relDir:WindSp +
+H_SPL.M <- clogit(case ~ abs_SPL_2000_std*relDir + abs_SPL_2000_std:WindSp + relDir:WindSp +
                           strata(pointID), cluster = birdID, 
                           robust = TRUE, method = 'approximate',  data = modDat.M)
 summary(H_SPL.M) 
@@ -134,75 +134,58 @@ summary(H_SPL.M)
 ## 1.2 Compare models using QIC weights   --------------------------------------
 hab::QIC(H_wind.F, H_SPL.F) 
 
-#             QIC   QuasiLL     n nevent K    Trace deltaQIC       weight
-#H_wind.F 6360.420 -3177.983 10746   1791 2 2.226734 26.54861 1.718072e-06
-#H_SPL.F  6333.872 -3161.075 10746   1791 5 5.860984  0.00000 9.999983e-01
+#              QIC   QuasiLL     n nevent K    Trace deltaQIC       weight
+#H_wind.F 6360.420 -3177.983 10746   1791 2 2.226734 23.45351 8.074797e-06
+#H_SPL.F  6336.967 -3162.583 10746   1791 5 5.900426  0.00000 9.999919e-01
 
 hab::QIC(H_wind.M, H_SPL.M) 
 
 #              QIC   QuasiLL    n nevent K    Trace deltaQIC       weight
-#H_wind.M 4770.176 -2383.153 8010   1335 2 1.934830 50.35415 1.163417e-11
-#H_SPL.M  4719.822 -2351.242 8010   1335 5 8.669667  0.00000 1.000000e+00
+#H_wind.M 4770.176 -2383.153 8010   1335 2 1.934830 40.79059 1.388152e-09
+#H_SPL.M  4729.386 -2356.030 8010   1335 5 8.663277  0.00000 1.000000e+00
 
 # 1.2.1 Get summaries from best supported models
 summary(H_SPL.F)
 
-#                          exp(coef) exp(-coef) lower .95 upper .95
-#abs_SPL_2000dB_std           1.0359     0.9654    0.9881    1.0860
-#relDir                       0.8359     1.1964    0.7931    0.8809
-#abs_SPL_2000dB_std:relDir    0.8555     1.1690    0.8030    0.9114
-#abs_SPL_2000dB_std:WindSp    1.0432     0.9586    0.9838    1.1061
-#relDir:WindSp                0.9387     1.0653    0.8952    0.9842    
+#                        exp(coef) exp(-coef) lower .95 upper .95
+#abs_SPL_2000_std           1.0273     0.9734    0.9732    1.0843
+#relDir                     0.8357     1.1966    0.7934    0.8803
+#abs_SPL_2000_std:relDir    0.8453     1.1830    0.7900    0.9045
+#abs_SPL_2000_std:WindSp    1.0327     0.9683    0.9688    1.1009
+#relDir:WindSp              0.9379     1.0662    0.8946    0.9833   
 
 summary(H_SPL.M)
 
-#                          exp(coef) exp(-coef) lower .95 upper .95
-#abs_SPL_2000dB_std           1.1923     0.8387    1.0969    1.2961
-#relDir                       0.9692     1.0318    0.9169    1.0245
-#abs_SPL_2000dB_std:relDir    0.8498     1.1767    0.7747    0.9322
-#abs_SPL_2000dB_std:WindSp    0.9965     1.0035    0.9106    1.0905
-#relDir:WindSp                0.9196     1.0875    0.8764    0.9648
+#                        exp(coef) exp(-coef) lower .95 upper .95
+#abs_SPL_2000_std           1.1885     0.8414    1.0869    1.2997
+#relDir                     0.9664     1.0348    0.9140    1.0217
+#abs_SPL_2000_std:relDir    0.8485     1.1785    0.7700    0.9351
+#abs_SPL_2000_std:WindSp    0.9844     1.0159    0.8927    1.0854
+#relDir:WindSp              0.9199     1.0871    0.8772    0.9647
+
+# 1.2.2 Odds ratio for SPL
+exp(coef(H_SPL.F)[1]) # 1.027274  
+exp(coef(H_SPL.M)[1]) # 1.188513
 
 
-### 2.0 Visualise effects ------------------------------------------------------
+# 1.2.3 Odds ratio for SPL * wind Dir interaction (assuming 1 unit increase in tailwind)
+exp(coef(H_SPL.F)[1] - coef(H_SPL.F)[3]) # 1.21524
+exp(coef(H_SPL.M)[1] - coef(H_SPL.M)[3]) # 1.21524
 
-# 2.0.0 Get focal vs non-focal SPL
 
-# 2.0.0.0 Standardised SPL
-stdSPL_comp <- with(modDat, 
-                        aggregate(abs_SPL_2000dB_std.OG ~ case + Sex, 
-                              FUN =  function(x) c( SD = sd(x), MN = mean(x) ) ) ) 
-stdSPL_comp <- do.call(data.frame, stdSPL_comp)
 
-stdSPL_comp %>% group_by(Sex) %>% summarise(diff = abs_SPL_2000dB_std.OG.MN[2] - abs_SPL_2000dB_std.OG.MN[1],
-                                            diff_SD = abs_SPL_2000dB_std.OG.SD[2] - abs_SPL_2000dB_std.OG.SD[1])
 
-#Sex     diff diff_SD
-#<fct>  <dbl>   <dbl>
-#1 F     0.0624 -0.0302
-#2 M     0.207  -0.0510
+### 2.0 Build effect plots -----------------------------------------------------
 
-# 2.0.0.1 Absolute SPL
-stdSPL <- with(modDat, aggregate(abs_SPL_2000dB ~ case + Sex, FUN =  function(x) c( SD = sd(x), MN = mean(x) ) ) )
-stdSPL <- do.call(data.frame, stdSPL)
+## 2.0 FEMALE - WIND + SPL MODEL COEFFICIENTS ----------------------------------
 
-stdSPL %>% group_by(Sex) %>% summarise(diff = abs_SPL_2000dB.MN[2] - abs_SPL_2000dB.MN[1],
-                                            diff_SD = abs_SPL_2000dB.SD[2] - abs_SPL_2000dB.SD[1])
-
-#Sex    diff diff_SD
-#<fct> <dbl>   <dbl>
-#1 F     0.106  0.0130
-#2 M     0.276 -0.109 
-
-## 2.1 FEMALE - WIND + SPL MODEL COEFFICIENTS ----------------------------------------
-
-# 2.1.0 Get data
+# 2.0.0 Get data
 RSF_plot.F.data <- data.frame(summary(H_SPL.F)$conf.int)
 RSF_plot.F.data <- tibble::rownames_to_column(RSF_plot.F.data, "term")
-RSF_plot.F.data$term <- c("SPL", "windDir", "SPL:windDir", "SPL:windSp", "windDir:windSp")
+RSF_plot.F.data$term <- c("SP", "windDir", "SP:windDir", "SP:windSp", "windDir:windSp")
 colnames(RSF_plot.F.data) <- c("term", "estimate", "exp(coef)", "conf.low","conf.high")
 
-# 2.2.1 Make the plot
+# 2.1.1 Make the plot
 coefPlot.F <- ggplot() +
   geom_point(data = RSF_plot.F.data, aes(x = estimate, y = term)) + 
   geom_errorbar(data = RSF_plot.F.data, aes(xmin = conf.low, xmax = conf.high, y = term), width = 0.2) +
@@ -210,25 +193,25 @@ coefPlot.F <- ggplot() +
   theme_bw() +
   labs(x = "Estimate (Odds Ratio)", y = "") +
   theme(axis.text.x = element_text(size = 16), 
-        axis.text.y = element_text(size = 16), 
+        axis.text.y = element_blank(), 
         axis.title.x = element_text(size = 18),
-        axis.title.y = element_text(size = 18),
+        axis.title.y = element_blank(),
         plot.title = element_text(face = "bold", size = 20)) +
-  scale_x_continuous(breaks = c(0.6,0.9,1.2,1.5,1.8), limits = c(0.6,1.8)) +
-  scale_y_discrete(limits = c("windDir:windSp", "SPL:windSp", "SPL:windDir",
-                             "windDir","SPL")) +
+  scale_x_continuous(breaks = c(0.6,0.8,1,1.2,1.4), limits = c(0.6,1.4)) +
+  scale_y_discrete(limits = c("windDir:windSp", "SP:windSp", "SP:windDir",
+                             "windDir","SP")) +
   ggtitle("Females")
 
 
-## 2.2 MALE - WIND + SPL MODEL COEFFICIENTS ------------------------------------
+## 2.1 MALE - WIND + SPL MODEL COEFFICIENTS ------------------------------------
 
-# 2.2.0 Get data
+# 2.1.0 Get data
 RSF_plot.M.data <- data.frame(summary(H_SPL.M)$conf.int)
 RSF_plot.M.data <- tibble::rownames_to_column(RSF_plot.M.data, "term")
-RSF_plot.M.data$term <- c("SPL", "windDir", "SPL:windDir", "SPL:windSp", "windDir:windSp")
+RSF_plot.M.data$term <- c("SP", "windDir", "SP:windDir", "SP:windSp", "windDir:windSp")
 colnames(RSF_plot.M.data) <- c("term", "estimate", "exp(coef)", "conf.low","conf.high")
 
-# 2.2.1 Make the plot
+# 2.1.1 Make the plot
 coefPlot.M <- ggplot() +
   geom_point(data = RSF_plot.M.data, aes(x = estimate, y = term)) + 
   geom_errorbar(data = RSF_plot.M.data, aes(xmin = conf.low, xmax = conf.high, y = term), width = 0.2) +
@@ -240,25 +223,25 @@ coefPlot.M <- ggplot() +
         axis.title.x = element_text(size = 18),
         axis.title.y = element_text(size = 18),
         plot.title = element_text(face = "bold", size = 20)) +
-  scale_x_continuous(breaks = c(0.6,0.9,1.2,1.5,1.8), limits = c(0.6,1.8)) +
-  scale_y_discrete(limits = c("windDir:windSp", "SPL:windSp", "SPL:windDir",
-                             "windDir","SPL")) +
+  scale_x_continuous(breaks = c(0.6,0.8,1,1.2,1.4), limits = c(0.6,1.4)) +
+  scale_y_discrete(limits = c("windDir:windSp", "SP:windSp", "SP:windDir",
+                             "windDir","SP")) +
   ggtitle("Males")
 
 
 #### FIGURE 2: Coefficients plot -----------------------------------------------
-png(filename = "Figures/FIG2_coefs.png", width = 13, height = 7, units = "in", res = 600)
+png(filename = "Figures/FIG2_coefs.png", width = 10, height = 7, units = "in", res = 600)
 grid.draw(cbind(ggplotGrob(coefPlot.M), ggplotGrob(coefPlot.F), size = "last"))
 dev.off()
 
 
-## 2.3 MALE - SPL*WIND DIR PREDICTIONS -----------------------------------------
+## 2.2 MALE - SPL*WIND DIR PREDICTIONS -----------------------------------------
 
-# 2.3.0 Get predictions - SPL * wind direction
+# 2.2.0 Get predictions - SPL * wind direction
 pred_plot.M2 <- sjPlot::plot_model(H_SPL.M, type = "int")[[1]]
 pred_plot.M2 <- data.frame(pred_plot.M2$data)
 
-# 2.3.1 Make the plot
+# 2.2.1 Make the plot
 
 # Set colours
 tailwind <- "#404788FF" # blue/purple
@@ -268,10 +251,10 @@ pred_M.SPL_plot <- ggplot() +
   geom_ribbon(data = pred_plot.M2, aes(x = x, ymin = conf.low, ymax = conf.high, 
                                        group = group), alpha = 0.5, fill = "grey") +
   geom_line(data = pred_plot.M2, aes(x = x, y = predicted, group = group, col = group), size = 1) +
-  scale_y_continuous(breaks = c(1,2,3,4,5), limits = c(0,5)) +
-  scale_x_continuous(limits = c(-3,2)) +
+  scale_y_continuous(breaks = c(1,2,3,4), limits = c(0,4)) +
+  scale_x_continuous(limits = c(-2,2)) +
   scale_colour_manual("Wind Direction", values = c(tailwind, headwind), labels = c("Tailwind (0°)", "Headwind (180°)")) +
-  labs(y = "Odds Ratio", x = "Standardised Sound Pressure Level (dB)") +
+  labs(y = "Odds Ratio", x = "Standardised Sound Pressure (pa)") +
   theme_bw() +
   theme(axis.text.x = element_text(size = 16), 
         axis.text.y = element_text(size = 16), 
@@ -287,8 +270,8 @@ pred_M.SPL_plot <- ggplot() +
         ) +
   guides(color = guide_legend(override.aes = list(size = 2)))
 
-# 2.3.2 Add histogram of SPL to plot
-pred_M.SPL_dens <- ggplot(data = subset(modDat.M, case == 1), aes(x = abs_SPL_2000dB_std)) + 
+# 2.2.2 Add histogram of SPL to plot
+pred_M.SPL_dens <- ggplot(data = subset(modDat.M, case == 1), aes(x = abs_SPL_2000_std)) + 
    geom_histogram(color = "black", fill = "white") + 
    theme_void() +
    labs(title = "Male", tag = "(a)") +
@@ -297,13 +280,13 @@ pred_M.SPL_dens <- ggplot(data = subset(modDat.M, case == 1), aes(x = abs_SPL_20
 
 pred_M.SPL <- pred_M.SPL_dens + pred_M.SPL_plot + plot_layout(ncol = 1, nrow = 3, heights = c(0.25,4))
 
-## 2.4 FEMALE - SPL*WIND DIR PREDICTIONS ---------------------------------------
+## 2.3 FEMALE - SPL*WIND DIR PREDICTIONS ---------------------------------------
 
-# 2.4.0 Get predictions - SPL * wind direction
+# 2.3.0 Get predictions - SPL * wind direction
 pred_plot.F2 <- sjPlot::plot_model(H_SPL.F, type = "int")[[1]]
 pred_plot.F2 <- data.frame(pred_plot.F2$data)
 
-# 2.4.1 Make the plot
+# 2.3.1 Make the plot
 
 # Set colours
 tailwind <- "#404788FF" # blue/purple
@@ -313,10 +296,10 @@ pred_F.SPL_plot <- ggplot() +
   geom_ribbon(data = pred_plot.F2, aes(x = x, ymin = conf.low, ymax = conf.high, 
                                        group = group), alpha = 0.5, fill = "grey") +
   geom_line(data = pred_plot.F2, aes(x = x, y = predicted, group = group, col = group), size = 1) +
-  scale_y_continuous(breaks = c(1,2,3,4,5), limits = c(0,5)) +
-  scale_x_continuous(limits = c(-3,2)) +
+  scale_y_continuous(breaks = c(1,2,3,4), limits = c(0,4)) +
+  scale_x_continuous(limits = c(-2,2)) +
   scale_colour_manual("Wind Direction", values = c(tailwind, headwind), labels = c("Tailwind (0°)", "Headwind (180°)")) +
-  labs(y = "", x = "Standardised Sound Pressure Level (dB)") +
+  labs(y = "", x = "Standardised Sound Pressure (pa)") +
   theme_bw() +
   theme(axis.text.x = element_text(size = 16), 
         axis.text.y = element_text(size = 16), 
@@ -327,8 +310,8 @@ pred_F.SPL_plot <- ggplot() +
         plot.tag = element_text(size = 22)) +
   guides(color = guide_legend(override.aes = list(size = 2)))
 
-# 2.4.2 Add histogram of SPL to plot
-pred_F.SPL_dens <- ggplot(data = subset(modDat.F, case == 1), aes(x = abs_SPL_2000dB_std)) + 
+# 2.3.2 Add histogram of SPL to plot
+pred_F.SPL_dens <- ggplot(data = subset(modDat.F, case == 1), aes(x = abs_SPL_2000_std)) + 
   geom_histogram(color = "black", fill = "white") + 
   theme_void() +
   labs(tag = "(b)", title = "Female") +
@@ -338,18 +321,17 @@ pred_F.SPL_dens <- ggplot(data = subset(modDat.F, case == 1), aes(x = abs_SPL_20
 pred_F.SPL <- pred_F.SPL_dens + pred_F.SPL_plot + plot_layout(ncol = 1, nrow = 3, heights = c(0.25,4))
 
 
-## 2.5 MALE - wind direction * speed predictions -------------------------------
+## 2.4 MALE - wind direction * speed predictions -------------------------------
 
-# 2.5.0 Get predictions - wind speed * wind direction
-pred_plot.M <- sjPlot::plot_model(H_SPL.M, type = "int")[[3]]
+# 2.4.0 Get predictions - wind speed * wind direction
+pred_plot.M <- sjPlot::plot_model(H_SPL.M, type = "pred",  terms = c("relDir", "WindSp [-1.094423, 1.668486]")) # equivalent to 5 and 15 m/s respectively
 pred_plot.M <- data.frame(pred_plot.M$data)
 
-# 2.5.1 Get scaling attributes for windDir
-att_windDir <- attributes(scale(modDat.M$relDir.OG, center = TRUE, scale = TRUE))
-mylabels_windDir <- seq(0,180,45)
-mybreaks_windDir <- scale(mylabels_windDir, att_windDir$`scaled:center`, att_windDir$`scaled:scale`)[,1]
+# 2.4.1 Set wind direction breaks and labels
+mylabels_windDir <- seq(0, 180, 45)
+mybreaks_windDir <- c(-2, -1, 0, 1, 2)
 
-# 2.5.2 Make the plot
+# 2.4.2 Make the plot
 
 # Set colours
 high_wind <- "#440154FF" # purple
@@ -359,10 +341,10 @@ pred_M.wind_plot <- ggplot() +
   geom_ribbon(data = pred_plot.M, aes(x = x, ymin = conf.low, ymax = conf.high, group = group),
               alpha = 0.5, fill = "grey") +
   geom_line(data = pred_plot.M, aes(x = x, y = predicted, group = group, col = group), size = 1) +
-  scale_colour_manual("Wind Speed", values = c(low_wind, high_wind), labels = c(expression ("Low (<1"~ms^{-1}~")"), 
-                                                                                expression ("High (>18"~ms^{-1}~")"))) +
+  scale_colour_manual("Wind Speed", values = c(low_wind, high_wind), labels = c(expression ("Low (5"~ms^{-1}~")"), 
+                                                                                expression ("High (15"~ms^{-1}~")"))) +
   scale_x_continuous(labels = mylabels_windDir, breaks = mybreaks_windDir) +
-  scale_y_continuous(breaks = c(0.5, 1, 1.5, 2, 2.5)) +
+  scale_y_continuous(breaks = c(0.4, 0.8, 1.2, 1.6, 2.0), limits = c(0.4, 2.2)) +
   labs(y = "Odds Ratio", x = "Wind Direction (°)") +
   theme_bw() +
   theme(axis.text.x = element_text(size=16), 
@@ -378,7 +360,7 @@ pred_M.wind_plot <- ggplot() +
         legend.text.align = 0,
         plot.tag = element_text(size = 22))
 
-# 2.5.3 Add histogram of wind directions to plot
+# 2.4.3 Add histogram of wind directions to plot
 pred_M.wind_dens <- ggplot(data = subset(modDat.M, case == 1), aes(x = relDir)) + 
   geom_histogram(color = "black", fill = "white") + 
   theme_void() +
@@ -389,18 +371,17 @@ pred_M.wind_dens <- ggplot(data = subset(modDat.M, case == 1), aes(x = relDir)) 
 pred_M.wind <- pred_M.wind_dens + pred_M.wind_plot + plot_layout(ncol = 1, nrow = 3, heights = c(0.25,4))
 
 
-## 2.6 FEMALE - wind direction * speed predictions -----------------------------
+## 2.5 FEMALE - wind direction * speed predictions -----------------------------
 
-# 2.6.0 Get predictions - wind speed * wind direction
-pred_plot.F <- sjPlot::plot_model(H_SPL.F, type = "int")[[3]]
+# 2.5.0 Get predictions - wind speed * wind direction
+pred_plot.F <- sjPlot::plot_model(H_SPL.F, type = "pred",  terms = c("relDir", "WindSp [-1.094423, 1.668486]")) # equivalent to 5 and 15 m/s respectively
 pred_plot.F <- data.frame(pred_plot.F$data)
 
-# 2.6.1 Get scaling attributes for windDir
-att_windDir <- attributes(scale(modDat.F$relDir.OG, center = TRUE, scale = TRUE))
+# 2.5.1 Set wind direction breaks and labels
 mylabels_windDir <- seq(0,180,45)
-mybreaks_windDir <- scale(mylabels_windDir, att_windDir$`scaled:center`, att_windDir$`scaled:scale`)[,1]
+mybreaks_windDir <- c(-2, -1, 0, 1, 2)
 
-# 2.6.2 Make the plot
+# 2.5.2 Make the plot
 
 # Set colours
 high_wind <- "#440154FF" # purple
@@ -410,10 +391,9 @@ pred_F.wind_base <- ggplot() +
   geom_ribbon(data = pred_plot.F, aes(x = x, ymin = conf.low, ymax = conf.high, group = group),
               alpha = 0.5, fill = "grey") +
   geom_line(data = pred_plot.F, aes(x = x, y = predicted, group = group, col = group), size = 1) +
-  scale_colour_manual("Wind Speed", values = c(low_wind, high_wind), labels = c(expression ("Low (<1"~ms^{-1}~")"), 
-                                                                                expression ("High (>18"~ms^{-1}~")"))) +
+  scale_colour_manual(values = c(low_wind, high_wind)) +
   scale_x_continuous(labels = mylabels_windDir, breaks = mybreaks_windDir) +
-  scale_y_continuous(breaks = c(0.5, 1, 1.5, 2, 2.5)) +
+  scale_y_continuous(breaks = c(0.4, 0.8, 1.2, 1.6, 2.0), limits = c(0.4, 2.2)) +
   labs(y = "", x = "Wind Direction (°)") +
   theme_bw() +
   theme(axis.text.x = element_text(size=16), 
@@ -424,7 +404,7 @@ pred_F.wind_base <- ggplot() +
         legend.position = "none",
         plot.tag = element_text(size = 22))
 
-# 2.6.3 Add histogram of wind directions to figure
+# 2.5.3 Add histogram of wind directions to figure
 pred_F.wind_dens <- ggplot(data = subset(modDat.F, case == 1), aes(x = relDir)) + 
   geom_histogram(color = "black", fill = "white") + 
   theme_void() +
@@ -434,7 +414,7 @@ pred_F.wind_dens <- ggplot(data = subset(modDat.F, case == 1), aes(x = relDir)) 
 
 pred_F.wind_plot <- pred_F.wind_dens + pred_F.wind_base + plot_layout(ncol = 1, nrow = 3, heights = c(0.25,4))
 
-# 2.6.4 Add orientation schematic to figure
+# 2.5.4 Add orientation schematic to figure
 pred_F.wind <- ggdraw() + 
     draw_plot(pred_F.wind_plot) +
     draw_image(
