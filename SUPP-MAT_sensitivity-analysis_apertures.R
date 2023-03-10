@@ -509,7 +509,7 @@ effects_plot <- ggplot(aes(x = aperture, y = coefs, group = cov, col = cov), dat
 
 
 #### FIGURE S2 - Plot of sensitivity analysis ----------------------------------
-tiff(filename = "Figures/FIGS2_sensitivity-aperture-coefs.tif", width = 10, height = 10, units = "in", res = 600)
+tiff(filename = "Figures/FIGS3_sensitivity-aperture-coefs.tif", width = 10, height = 10, units = "in", res = 600)
 effects_plot
 dev.off()
 
@@ -578,7 +578,7 @@ SPL_diffs.scatter <- ggplot(data = diffs, aes(x = pointID_numeric, y = delta_dB)
         axis.title.y = element_text(size = 18))
 
 
-tiff(filename = "Figures/FIGS4_SPL-differences.tif", width = 18, height = 9, units = "in", res = 600)
+tiff(filename = "Figures/FIGS5_SPL-differences.tif", width = 18, height = 9, units = "in", res = 600)
 ggarrange(SPL_diffs.hist, SPL_diffs.scatter, 
           ncol = 2)
 dev.off()

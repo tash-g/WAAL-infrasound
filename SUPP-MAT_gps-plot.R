@@ -143,7 +143,7 @@ points_map <- ggplot(data = world2) +
 
 #### FIGURE S1 - Map of GPS fixes and decision points --------------------------
 
-tiff("Figures/FIGS1_gps-map.tif", width = 15, height = 7, units = "in", res = 350)
+tiff("Figures/FIGS2_gps-map.tif", width = 15, height = 7, units = "in", res = 350)
 ggarrange(gps_map, points_map, ncol = 2)
 dev.off()
 
@@ -191,6 +191,6 @@ bird2_plot <- ggplot(data = world2) +
   annotate("text", label = "Crozet", colony.df$Lon, (colony.df$Lat - 115000))
 
 ### Output the plot
-tiff("Figures/FIGS3_examplar_loop_maps.tif", width = 15, height = 7, units = "in", res = 350)
+tiff("Figures/FIGS4_examplar_loop_maps.tif", width = 15, height = 7, units = "in", res = 350)
 ggarrange(bird1_plot, bird2_plot, ncol = 2, nrow = 1)
 dev.off()
