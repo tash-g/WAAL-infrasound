@@ -27,7 +27,7 @@ packages <- c("survival", "ggplot2", "grid", "dplyr", "emmeans", "sjPlot",
 #installed_packages <- packages %in% rownames(installed.packages())
 
 #if (any(installed_packages == FALSE)) {
-#  install.packages(packages[!installed_packages], lib = "C:/Users/libraryPath")
+#  install.packages(packages[!installed_packages])
 #}
 
 # 0.0.1 Load packages
@@ -59,6 +59,14 @@ modDat[factor_vars] <- lapply(modDat[factor_vars], factor)
 
 # 0.2.2 Remove NA variables
 modDat <- modDat[!is.na(modDat$abs_SPL_2000_std),]
+
+# 0.2.3 Decision points per individual
+pts_summ <- modDat %>% 
+              group_by(birdID) %>%
+              summarise(pts_distinct = n_distinct(pointID)) %>%
+            data.frame()
+
+mean(pts_summ$pts_distinct)
 
 ## 0.3 Check data structure ----------------------------------------------------
 
@@ -132,13 +140,13 @@ summary(H_SPL.M)
 
 
 ## 1.2 Compare models using QIC weights   --------------------------------------
-hab::QIC(H_wind.F, H_SPL.F) 
+hab::QIC(H_wind.F, H_SPL.F)
 
 #              QIC   QuasiLL     n nevent K    Trace deltaQIC       weight
 #H_wind.F 6360.420 -3177.983 10746   1791 2 2.226734 23.45351 8.074797e-06
 #H_SPL.F  6336.967 -3162.583 10746   1791 5 5.900426  0.00000 9.999919e-01
 
-hab::QIC(H_wind.M, H_SPL.M) 
+hab::QIC(H_wind.M, H_SPL.M)
 
 #              QIC   QuasiLL    n nevent K    Trace deltaQIC       weight
 #H_wind.M 4770.176 -2383.153 8010   1335 2 1.934830 40.79059 1.388152e-09
@@ -230,7 +238,7 @@ coefPlot.M <- ggplot() +
 
 
 #### FIGURE 2: Coefficients plot -----------------------------------------------
-png(filename = "Figures/FIG2_coefs.png", width = 10, height = 7, units = "in", res = 600)
+tiff(filename = "Figures/FIG2_coefs.tif", width = 10, height = 7, units = "in", res = 600)
 grid.draw(cbind(ggplotGrob(coefPlot.M), ggplotGrob(coefPlot.F), size = "last"))
 dev.off()
 
@@ -254,7 +262,7 @@ pred_M.SPL_plot <- ggplot() +
   scale_y_continuous(breaks = c(1,2,3,4), limits = c(0,4)) +
   scale_x_continuous(limits = c(-2,2)) +
   scale_colour_manual("Wind Direction", values = c(tailwind, headwind), labels = c("Tailwind (0°)", "Headwind (180°)")) +
-  labs(y = "Odds Ratio", x = "Standardised Sound Pressure (pa)") +
+  labs(y = "Odds Ratio", x = "Standardised Sound Pressure (Pa)") +
   theme_bw() +
   theme(axis.text.x = element_text(size = 16), 
         axis.text.y = element_text(size = 16), 
@@ -266,8 +274,7 @@ pred_M.SPL_plot <- ggplot() +
         legend.background = element_blank(),
         legend.text = element_text(size = 16),
         legend.title = element_text(size = 18),
-        legend.text.align = 0,
-        ) +
+        legend.text.align = 0) +
   guides(color = guide_legend(override.aes = list(size = 2)))
 
 # 2.2.2 Add histogram of SPL to plot
@@ -299,7 +306,7 @@ pred_F.SPL_plot <- ggplot() +
   scale_y_continuous(breaks = c(1,2,3,4), limits = c(0,4)) +
   scale_x_continuous(limits = c(-2,2)) +
   scale_colour_manual("Wind Direction", values = c(tailwind, headwind), labels = c("Tailwind (0°)", "Headwind (180°)")) +
-  labs(y = "", x = "Standardised Sound Pressure (pa)") +
+  labs(y = "", x = "Standardised Sound Pressure (Pa)") +
   theme_bw() +
   theme(axis.text.x = element_text(size = 16), 
         axis.text.y = element_text(size = 16), 
@@ -425,7 +432,6 @@ pred_F.wind <- ggdraw() +
 
 #### FIGURE 3: Predictions plot ------------------------------------------------
 
-png(filename = "Figures/FIG3_predictions.png", width = 15, height = 15, units = "in", res = 700)
+tiff(filename = "Figures/FIG3_predictions.tif", width = 15, height = 15, units = "in", res = 700)
 ggarrange(pred_M.SPL, pred_F.SPL, pred_M.wind, pred_F.wind, ncol = 2, nrow = 2)
 dev.off()
-

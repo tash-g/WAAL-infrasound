@@ -3,7 +3,8 @@
 ## Script name: SUPP-MAT_sensitivity_analysis_apertures.R
 ##
 ## Purpose of script: This script varies the segment apertures between 15 and 90
-## degrees, and assess how this influences the covariate output.
+## degrees, and assess how this influences the covariate output. Section 7 plots
+## SPL differences within decision points
 ##
 ## Author: Dr. Natasha Gillies
 ##
@@ -18,7 +19,7 @@
 ### 0.0 Load packages ----------------------------------------------------------
 
 ## 0.0.0 Specify the packages
-packages <- c("dplyr", "ncdf4", "lubridate", "birk", "ggplot2", "survival")
+packages <- c("dplyr", "ncdf4", "lubridate", "birk", "ggplot2", "survival", "ggpubr")
 
 # Install packages not yet installed - change lib to library path
 #installed_packages <- packages %in% rownames(installed.packages())
@@ -507,7 +508,78 @@ effects_plot <- ggplot(aes(x = aperture, y = coefs, group = cov, col = cov), dat
         plot.tag = element_text(size = 22))
 
 
-#### FIGURE S3 - Plot of sensitivity analysis ----------------------------------
-png(filename = "Figures/FIGS2_sensitivity-aperture-coefs.png", width = 10, height = 10, units = "in", res = 600)
+#### FIGURE S2 - Plot of sensitivity analysis ----------------------------------
+tiff(filename = "Figures/FIGS2_sensitivity-aperture-coefs.tif", width = 10, height = 10, units = "in", res = 600)
 effects_plot
 dev.off()
+
+### 7.0 Plot SPL differences by decision point ---------------------------------
+
+# 7.0.0 Load the relevant data
+modDat <- data.table::fread("Data_inputs/WAAL_2013_gps_processed_aperture60deg.csv", 
+                            data.table = F)
+
+# 7.0.1 Rename and process variables
+modDat <- rename(modDat, case = segment_ID)
+
+factor_vars <- c("TripID", "birdID", "Sex", "pointID")
+modDat[factor_vars] <- lapply(modDat[factor_vars], factor)
+
+# 7.0.2 Remove NA variables
+modDat <- modDat[!is.na(modDat$abs_SPL_2000_std),]
+
+## 7.1 Calculate SPL differences in PA within segments -------------------------
+
+diffs <- modDat %>% 
+  group_by(TripID, pointID) %>%
+  mutate(diffs = abs_SPL_2000[case == 1] - abs_SPL_2000,
+         maxMarker = ifelse(diffs == max(diffs), "max", "not"),
+         focalVal = abs_SPL_2000[case == 1]) %>%
+  filter(maxMarker == "max" & case == 0) %>%
+  data.frame()
+
+# 7.1.1 Convert pressure values to decibels
+diffs$focal_dB <- 20*log10(diffs$focalVal/0.00002)
+diffs$vals_dB <- 20*log10(diffs$abs_SPL_2000/0.00002)
+diffs$delta_dB <- diffs$focal_dB - diffs$vals_dB
+
+
+
+#### FIGURE S4  - SPL differences focal vs non-focal ---------------------------
+
+diffs$Sex <- ifelse(diffs$Sex == "F", "Females", "Males")
+
+SPL_diffs.hist <- ggplot(data = diffs, aes(x = delta_dB)) + 
+  facet_grid(.~Sex) + 
+  geom_histogram(bins = 30, boundary = 0) + 
+  geom_vline(aes(xintercept = mean(delta_dB), group = Sex, col = "red"),  size = 1) +
+  labs(x = "Max(SPL Focal segment - Non-focal segment) dB", 
+       y = "Frequency", tag = "(a)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 18),
+        axis.title.y = element_text(size = 18),
+        plot.tag = element_text(size = 18),
+        legend.position = "none")
+
+diffs$pointID_numeric <- as.numeric(sapply(stringr::str_split(diffs$pointID, "[.]"), tail, 1))
+
+SPL_diffs.scatter <- ggplot(data = diffs, aes(x = pointID_numeric, y = delta_dB)) + 
+  geom_point() + 
+  facet_grid(.~Sex) + 
+  labs(y = "Max(SPL Focal segment - Non-focal segment) dB", 
+       x = "Decision point index", tag = "(b)") +
+  theme_bw() +
+  theme(axis.text.x = element_text(size = 16),
+        axis.text.y = element_text(size = 16),
+        axis.title.x = element_text(size = 18),
+        plot.tag = element_text(size = 18),
+        axis.title.y = element_text(size = 18))
+
+
+tiff(filename = "Figures/FIGS4_SPL-differences.tif", width = 18, height = 9, units = "in", res = 600)
+ggarrange(SPL_diffs.hist, SPL_diffs.scatter, 
+          ncol = 2)
+dev.off()
+
