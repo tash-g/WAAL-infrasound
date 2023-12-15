@@ -6,7 +6,7 @@ Natasha Gillies*, Lucía Martina Martín López*, Olivier F. C. den Ouden, Jelle
 ## Overview
 This repository contains scripts and data to recreate the main results and figures of the following manuscript:
 
-Albatross movement suggests sensitivity to infrasound cues at sea (2023). Gillies N*, Martin Lopez LM*, den Ouden OFC, Assink JD, Basille M, Clay T, Clusella-Trullas S, Joo R, Weimerskirch H, Zampolli M, Zeyl JN, Patrick SC. _PNAS_. 120 (42) e2218679120. DOI: https://doi.org/10.1073/pnas.2218679120
+Albatross movement suggests sensitivity to infrasound cues at sea. (2023) Gillies N*, Martin Lopez LM*, den Ouden OFC, Assink JD, Basille M, Clay T, Clusella-Trullas S, Joo R, Weimerskirch H, Zampolli M, Zeyl JN, Patrick SC. _PNAS_. 120 (42) e2218679120. DOI: https://doi.org/10.1073/pnas.2218679120
 
 Note that microbarom sound maps are very large and therefore not available with this repository. Please get in touch if you are interested in using these data. 
 
